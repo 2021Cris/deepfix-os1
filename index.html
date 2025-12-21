@@ -4,18 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="https://lucide.dev/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DeepFix OS 1 - Certificación Técnica</title>
-    <!-- Cargamos Tailwind CSS para asegurar estilos rápidos y profesionales -->
+    <title>DeepFix OS 1 - Peritaje Técnico</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
-      body { font-family: 'Inter', sans-serif; }
+      body { 
+        font-family: 'Inter', sans-serif; 
+        background-color: #0f172a; 
+        margin: 0; 
+        color: #f8fafc;
+      }
+      #root { min-height: 100vh; }
     </style>
   </head>
-  <body class="bg-slate-900 overflow-x-hidden">
-    <!-- Contenedor principal de React -->
+  <body>
     <div id="root"></div>
-    <!-- Vinculación al archivo de lógica principal -->
+    <!-- Punto de entrada principal en la carpeta src -->
     <script type="module" src="/src/App.jsx"></script>
   </body>
 </html>
