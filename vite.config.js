@@ -1,20 +1,19 @@
-{
-  "name": "deepfix-os1",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+/**
+ * Configuración optimizada para despliegues en Vercel.
+ * Se define la base como '/' para asegurar que las rutas sean absolutas y correctas.
+ */
+export default defineConfig({
+  plugins: [react()],
+  base: '/',
+  build: {
+    outDir: 'dist',
+    // Target es2020 para compatibilidad con variables de entorno modernas
+    target: 'es2020'
   },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "lucide-react": "^0.284.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.0.3",
-    "vite": "^4.4.5"
+  server: {
+    historyApiFallback: true
   }
-}
+})
