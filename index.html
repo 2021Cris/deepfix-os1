@@ -7,11 +7,15 @@
     <title>DeepFix OS 1 - Certificación Técnica</title>
     <!-- Cargamos Tailwind CSS para asegurar estilos rápidos y profesionales -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+      body { font-family: 'Inter', sans-serif; }
+    </style>
   </head>
-  <body class="bg-slate-900">
-    <!-- El contenedor root debe estar presente para que React se monte -->
+  <body class="bg-slate-900 overflow-x-hidden">
+    <!-- Contenedor principal de React -->
     <div id="root"></div>
-    <!-- Vinculación al archivo de lógica principal en la subcarpeta src -->
+    <!-- Vinculación al archivo de lógica principal -->
     <script type="module" src="/src/App.jsx"></script>
   </body>
 </html>
