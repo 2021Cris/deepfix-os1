@@ -1,290 +1,273 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createRoot } from 'react-dom/client';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Activity, Zap, ShieldCheck, QrCode, Lock, 
-  Barcode, History, Hammer, ZapOff, PlusCircle, 
-  X, Camera, DollarSign, Loader2, Sparkles, Menu,
-  Fingerprint, ClipboardList, Battery, AlertTriangle,
-  ChevronDown, RefreshCcw, CheckCircle2
+  Layout, 
+  CheckCircle2, 
+  Circle, 
+  Calendar, 
+  Clock, 
+  Plus, 
+  Trash2, 
+  Search, 
+  Settings, 
+  Bell, 
+  ChevronRight,
+  Target,
+  BarChart3,
+  Sun,
+  Moon
 } from 'lucide-react';
 
-/**
- * DEEPFIX INTELLIGENCE - GESTIÓN DE TOKEN
- * Se obtiene la API Key desde las Environment Variables de Vercel.
- */
-const getSafeToken = () => {
-  try {
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      return import.meta.env.VITE_CORE_TOKEN || "";
-    }
-    return "";
-  } catch (e) { return ""; }
-};
-
-const coreAuthToken = getSafeToken();
-
-/**
- * MOTOR DE IA - AUDITORÍA NARRATIVA
- */
-const runCoreAudit = async (payload) => {
-  if (!coreAuthToken) return "Error: Token VITE_CORE_TOKEN no configurado en Vercel.";
-  
-  const model = "gemini-2.5-flash-preview-09-2025";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${coreAuthToken}`;
-  
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: payload }] }],
-        systemInstruction: { parts: [{ text: "Eres DeepFix OS Core. Genera reportes periciales técnicos de electromovilidad en español profesional. Analiza cumplimiento de Ley 250W." }] }
-      })
-    });
-    const result = await response.json();
-    return result.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo sintetizar el informe.";
-  } catch (e) {
-    return "Error de comunicación con el nodo central de DeepFix.";
-  }
-};
-
-const MOTOR_DB = [
-  { id: 'bosch', name: 'Bosch Performance Line', eff: 0.92, res: 0.12 },
-  { id: 'shimano', name: 'Shimano Steps E-Series', eff: 0.90, res: 0.14 },
-  { id: 'bafang', name: 'Bafang M-Series (Mid)', eff: 0.85, res: 0.18 },
-  { id: 'mxus', name: 'MXUS Hub Motor', eff: 0.84, res: 0.20 },
-  { id: 'generic', name: 'Genérico / Otros', eff: 0.80, res: 0.25 },
-];
-
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loginData, setLoginData] = useState({ user: '', pass: '' });
-  const [authError, setAuthError] = useState("");
-  const [view, setView] = useState('diagnostic');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // --- ESTADOS TÉCNICOS ---
-  const [existingCode, setExistingCode] = useState("QR-DFX-2201");
-  const [serialNumber, setSerialNumber] = useState("SN-2025-X84");
-  const [vNominal, setVNominal] = useState(48);
-  const [iMax, setIMax] = useState(15);
-  const [selectedBrand, setSelectedBrand] = useState(MOTOR_DB[2]);
-  const [firmwareLocked, setFirmwareLocked] = useState(true);
-  
-  // Bitácora
-  const [logs, setLogs] = useState([
-    { id: 1, date: '2024-03-10', type: 'Mecánica', detail: 'Ajuste de frenos y lubricación.', tech: 'Taller Central', cost: 45000 },
-    { id: 2, date: '2024-05-20', type: 'Eléctrica', detail: 'Test de celdas y balanceo.', tech: 'DeepFix LAB', cost: 85000 }
+  const [tasks, setTasks] = useState([
+    { id: 1, text: 'Design new landing page', completed: false, priority: 'High', category: 'Work' },
+    { id: 2, text: 'Review team feedback', completed: true, priority: 'Medium', category: 'Work' },
+    { id: 3, text: 'Buy groceries', completed: false, priority: 'Low', category: 'Personal' },
   ]);
+  const [newTask, setNewTask] = useState('');
+  const [filter, setFilter] = useState('All');
+  const [darkMode, setDarkMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [reportResult, setReportResult] = useState("");
-  const [showLogForm, setShowLogForm] = useState(false);
-  const [newLog, setNewLog] = useState({ type: 'Mecánica', detail: '', tech: '', cost: '' });
-
-  // Cálculos de Potencia
-  const pOut = Math.round(((vNominal * iMax) - (Math.pow(iMax, 2) * selectedBrand.res)) * selectedBrand.eff);
-  const isCompliant = pOut <= 250 && firmwareLocked;
-  const totalInvestment = logs.reduce((acc, curr) => acc + Number(curr.cost), 0);
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (loginData.user === 'pruebacorreo' && loginData.pass === 'pruebacorreo') {
-      setIsAuthenticated(true);
-      setAuthError("");
-    } else { 
-      setAuthError("Credenciales incorrectas."); 
-    }
+  // Local storage simulation (State based for this environment)
+  const toggleTask = (id) => {
+    setTasks(tasks.map(task => 
+      task.id === id ? { ...task, completed: !task.completed } : task
+    ));
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-md bg-white rounded-[3rem] p-12 shadow-2xl text-center animate-in zoom-in duration-300">
-          <div className="bg-cyan-500 p-6 rounded-[2rem] inline-block mb-8 text-slate-900 shadow-xl"><Zap size={48} fill="currentColor" /></div>
-          <h2 className="text-4xl font-black italic text-slate-900 uppercase tracking-tighter">DeepFix <span className="text-cyan-600">OS 1</span></h2>
-          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2 mb-10">Control de Activos Técnicos</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input type="text" placeholder="Usuario" className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-3xl text-center font-bold outline-none focus:border-cyan-500 transition-all" onChange={e => setLoginData({...loginData, user: e.target.value})} required />
-            <input type="password" placeholder="Contraseña" className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-3xl text-center font-bold outline-none focus:border-cyan-500 transition-all" onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
-            {authError && <p className="text-rose-500 text-[10px] font-black uppercase">{authError}</p>}
-            <button className="w-full py-5 bg-slate-900 text-white rounded-[1.8rem] font-black uppercase tracking-widest hover:bg-slate-800 active:scale-95 transition-all shadow-xl">Entrar</button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  const addTask = (e) => {
+    e.preventDefault();
+    if (!newTask.trim()) return;
+    const task = {
+      id: Date.now(),
+      text: newTask,
+      completed: false,
+      priority: 'Medium',
+      category: 'General'
+    };
+    setTasks([task, ...tasks]);
+    setNewTask('');
+  };
+
+  const deleteTask = (id) => {
+    setTasks(tasks.filter(task => task.id !== id));
+  };
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      const matchesFilter = filter === 'All' || 
+                           (filter === 'Active' && !task.completed) || 
+                           (filter === 'Completed' && task.completed);
+      const matchesSearch = task.text.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesFilter && matchesSearch;
+    });
+  }, [tasks, filter, searchQuery]);
+
+  const stats = {
+    total: tasks.length,
+    completed: tasks.filter(t => t.completed).length,
+    pending: tasks.filter(t => !t.completed).length
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans">
-      {/* Sidebar Navigation */}
-      <aside className={`fixed inset-0 lg:relative z-50 lg:z-20 w-full lg:w-80 bg-slate-900 text-white p-8 flex flex-col gap-8 shadow-2xl transition-transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4 text-cyan-400 font-black italic text-3xl uppercase tracking-tighter">
-            <Zap size={36} fill="currentColor" /> DeepFix
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-gray-50 text-slate-900'}`}>
+      {/* Sidebar (Desktop) / Bottom Nav (Mobile) */}
+      <aside className={`fixed left-0 top-0 h-full w-20 md:w-64 border-r transition-colors ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} hidden sm:flex flex-col`}>
+        <div className="p-6 flex items-center gap-3">
+          <div className="bg-indigo-600 p-2 rounded-lg">
+            <Layout className="text-white w-6 h-6" />
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2"><X /></button>
+          <span className="font-bold text-xl hidden md:block">NexusFlow</span>
         </div>
-        <nav className="flex flex-col gap-3 mt-6 text-left">
-          <button onClick={() => { setView('diagnostic'); setIsSidebarOpen(false); }} className={`p-5 rounded-2xl font-bold uppercase text-[11px] tracking-widest flex items-center gap-4 transition-all ${view === 'diagnostic' ? 'bg-cyan-600 text-white shadow-xl shadow-cyan-900/40' : 'hover:bg-slate-800 text-slate-500'}`}><Activity size={20}/> Peritaje Técnico</button>
-          <button onClick={() => { setView('lifecycle'); setIsSidebarOpen(false); }} className={`p-5 rounded-2xl font-bold uppercase text-[11px] tracking-widest flex items-center gap-4 transition-all ${view === 'lifecycle' ? 'bg-cyan-600 text-white shadow-xl shadow-cyan-900/40' : 'hover:bg-slate-800 text-slate-500'}`}><History size={20}/> Pasaporte Digital</button>
+        
+        <nav className="flex-1 px-4 py-4 space-y-2">
+          {['Dashboard', 'Tasks', 'Schedule', 'Analytics', 'Settings'].map((item) => (
+            <button
+              key={item}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                item === 'Tasks' 
+                  ? 'bg-indigo-600/10 text-indigo-600' 
+                  : `hover:${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`
+              }`}
+            >
+              {item === 'Dashboard' && <Layout size={20} />}
+              {item === 'Tasks' && <CheckCircle2 size={20} />}
+              {item === 'Schedule' && <Calendar size={20} />}
+              {item === 'Analytics' && <BarChart3 size={20} />}
+              {item === 'Settings' && <Settings size={20} />}
+              <span className="hidden md:block font-medium">{item}</span>
+            </button>
+          ))}
         </nav>
-        <button onClick={() => setIsAuthenticated(false)} className="mt-auto p-5 bg-rose-500/10 text-rose-500 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-rose-500 hover:text-white transition-all">Cerrar Sesión</button>
       </aside>
 
-      {/* Main Area */}
-      <main className="flex-1 p-6 md:p-12 lg:p-16 overflow-y-auto text-left relative">
-        <header className="lg:hidden flex justify-between items-center mb-8 bg-slate-900 p-4 rounded-[1.5rem] text-white">
-          <div className="flex items-center gap-2"><Zap className="text-cyan-400" size={24} /><span className="font-black italic uppercase text-sm">DeepFix OS 1</span></div>
-          <button onClick={() => setIsSidebarOpen(true)}><Menu /></button>
+      {/* Main Content */}
+      <main className="sm:ml-20 md:ml-64 p-4 md:p-8">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Good Morning!</h1>
+            <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Here's what's happening with your projects today.</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-full border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} hover:shadow-md transition-all`}
+            >
+              {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-slate-600" />}
+            </button>
+            <div className="relative group">
+              <Bell size={20} className="cursor-pointer" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </div>
+            <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full border-2 border-white shadow-sm overflow-hidden">
+               <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="avatar" />
+            </div>
+          </div>
         </header>
 
-        {view === 'diagnostic' && (
-          <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-500">
-            <h2 className="text-4xl font-black uppercase text-slate-900 tracking-tighter border-b-4 border-cyan-500 inline-block pb-2">Certificación Técnica</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-              <div className="lg:col-span-2 space-y-10 text-left">
-                {/* Identidad */}
-                <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-10">
-                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-3"><Barcode className="text-cyan-600" size={20} /> Identidad del Vehículo</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase ml-4">ID QR Taller</label><input type="text" value={existingCode} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-3xl font-black text-center outline-none focus:border-cyan-500" onChange={e => setExistingCode(e.target.value)} /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase ml-4">Serial Chasis</label><input type="text" value={serialNumber} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-3xl font-black text-center outline-none focus:border-cyan-500" onChange={e => setSerialNumber(e.target.value)} /></div>
-                  </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {[
+            { label: 'Total Tasks', value: stats.total, icon: Layout, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+            { label: 'Completed', value: stats.completed, icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10' },
+            { label: 'Pending', value: stats.pending, icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' }
+          ].map((stat, i) => (
+            <div key={i} className={`p-6 rounded-2xl border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className={`${stat.bg} p-3 rounded-xl`}>
+                  <stat.icon className={`${stat.color} w-6 h-6`} />
                 </div>
+                <span className="text-sm font-medium text-slate-400">+12% vs last week</span>
+              </div>
+              <h3 className="text-sm font-medium text-slate-400">{stat.label}</h3>
+              <p className="text-2xl font-bold">{stat.value}</p>
+            </div>
+          ))}
+        </div>
 
-                {/* Parámetros Eléctricos */}
-                <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-12 text-left">
-                  <div className="space-y-8">
-                    <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-widest">Inyección Eléctrica</h4>
-                    <div className="space-y-6">
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-xs font-bold uppercase"><span>Voltaje</span><span className="text-cyan-600 font-black">{vNominal}V</span></div>
-                        <input type="range" min="24" max="72" value={vNominal} className="w-full h-2 bg-slate-100 rounded-full appearance-none accent-cyan-600" onChange={e => setVNominal(Number(e.target.value))} />
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-xs font-bold uppercase"><span>Amperaje</span><span className="text-cyan-600 font-black">{iMax}A</span></div>
-                        <input type="range" min="5" max="45" value={iMax} className="w-full h-2 bg-slate-100 rounded-full appearance-none accent-cyan-600" onChange={e => setIMax(Number(e.target.value))} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col justify-center items-center gap-6 p-8 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200">
-                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Seguridad</h4>
-                    <button onClick={() => setFirmwareLocked(!firmwareLocked)} className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase flex items-center justify-center gap-3 transition-all shadow-lg ${firmwareLocked ? 'bg-cyan-500 text-slate-900 shadow-cyan-500/30' : 'bg-slate-300 text-slate-500'}`}>
-                      <Lock size={20}/> {firmwareLocked ? 'LOCKED' : 'OPEN'}
+        {/* Tasks Section */}
+        <div className={`rounded-2xl border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} shadow-sm overflow-hidden`}>
+          <div className="p-6 border-b border-inherit flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-bold">Tasks</h2>
+              <div className="flex bg-gray-100 p-1 rounded-lg dark:bg-slate-700">
+                {['All', 'Active', 'Completed'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${
+                      filter === f 
+                        ? 'bg-white shadow-sm text-indigo-600 dark:bg-slate-600 dark:text-indigo-400' 
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`pl-10 pr-4 py-2 rounded-xl border w-full md:w-64 focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
+                  darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'
+                }`}
+              />
+            </div>
+          </div>
+
+          <div className="p-6">
+            <form onSubmit={addTask} className="flex gap-2 mb-6">
+              <input 
+                type="text" 
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="Add a new task..."
+                className={`flex-1 px-4 py-2 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
+                  darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'
+                }`}
+              />
+              <button 
+                type="submit"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors"
+              >
+                <Plus size={20} />
+                <span className="hidden sm:inline">Add Task</span>
+              </button>
+            </form>
+
+            <div className="space-y-3">
+              {filteredTasks.length > 0 ? filteredTasks.map(task => (
+                <div 
+                  key={task.id}
+                  className={`group flex items-center justify-between p-4 rounded-xl border transition-all ${
+                    darkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-gray-50 border-gray-200'
+                  } hover:shadow-md`}
+                >
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => toggleTask(task.id)}
+                      className={`transition-colors ${task.completed ? 'text-green-500' : 'text-slate-400 hover:text-indigo-500'}`}
+                    >
+                      {task.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
                     </button>
-                    <p className="text-[9px] text-slate-400 text-center font-bold uppercase tracking-tight">Requerido para certificación legal.</p>
-                  </div>
-                </div>
-
-                {/* IA Audit Report */}
-                <div className="bg-slate-900 p-10 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden text-left">
-                   <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none"><Sparkles size={160} /></div>
-                   <div className="flex justify-between items-center relative z-10 mb-8">
-                      <h3 className="text-xl font-black uppercase flex items-center gap-4 tracking-tighter text-white"><Sparkles className="text-cyan-400" size={28} /> Veredicto DeepFix IA</h3>
-                      <button onClick={async () => { setIsProcessing(true); const r = await runCoreAudit(`Potencia: ${pOut}W, Cumple: ${isCompliant}, Lock: ${firmwareLocked}`); setReportResult(r); setIsProcessing(false); }} className="px-10 py-3 bg-cyan-500 text-slate-900 rounded-2xl font-black text-xs uppercase shadow-xl transition-all hover:bg-cyan-400 active:scale-95 disabled:opacity-50" disabled={isProcessing}>{isProcessing ? <Loader2 className="animate-spin" size={20}/> : 'Generar Reporte'}</button>
-                   </div>
-                   <div className="bg-slate-800/60 p-8 rounded-[2rem] border border-slate-700 min-h-[140px] text-sm leading-relaxed text-slate-300 italic">
-                      {reportResult || "Procese los parámetros técnicos para obtener un veredicto sintético basado en inteligencia artificial."}
-                   </div>
-                </div>
-              </div>
-
-              {/* Status Board */}
-              <aside className="space-y-10 flex flex-col items-center">
-                <div className={`w-full p-14 rounded-[4rem] text-white flex flex-col items-center justify-center shadow-2xl transition-all duration-700 ${isCompliant ? 'bg-emerald-600 shadow-emerald-900/30' : 'bg-rose-600 shadow-rose-900/30'}`}>
-                  <p className="text-[11px] font-black uppercase opacity-70 mb-6 tracking-[0.2em] text-center">Potencia Estimada</p>
-                  <div className="flex items-baseline gap-2"><span className="text-9xl font-black tracking-tighter leading-none">{pOut}</span><span className="text-3xl font-bold uppercase">W</span></div>
-                  <div className="mt-12 w-full py-4 bg-black/20 rounded-[1.5rem] font-black text-[12px] uppercase text-center tracking-widest">{isCompliant ? 'APTO PARA USO PÚBLICO' : 'RECHAZADO POR EXCESO'}</div>
-                </div>
-                
-                <div className="bg-white p-12 rounded-[4rem] border border-slate-100 w-full flex flex-col items-center gap-12 shadow-sm text-center">
-                  <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 shadow-inner">
-                    <QrCode size={160} className={isCompliant ? 'text-slate-900 opacity-100' : 'text-slate-100 opacity-30'} />
-                  </div>
-                  <button disabled={!isCompliant} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest disabled:opacity-10 active:scale-95 transition-all shadow-xl shadow-black/10">Emitir Sello Digital</button>
-                </div>
-              </aside>
-            </div>
-          </div>
-        )}
-
-        {view === 'lifecycle' && (
-          <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-500 text-left">
-            <header className="flex flex-col md:flex-row justify-between items-center gap-8 border-b border-slate-200 pb-12">
-               <div>
-                  <h2 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Pasaporte Digital</h2>
-                  <p className="text-slate-500 text-base italic leading-relaxed">Trazabilidad inmutable de vida útil e intervenciones técnicas.</p>
-               </div>
-               <button onClick={() => setShowLogForm(true)} className="px-12 py-6 bg-cyan-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest flex items-center gap-4 shadow-2xl hover:bg-cyan-700 active:scale-95 transition-all shadow-cyan-600/30"><PlusCircle size={24} /> Registrar Intervención</button>
-            </header>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
-               <div className="bg-slate-900 p-12 rounded-[3rem] text-white h-fit text-center space-y-6 shadow-2xl flex flex-col items-center">
-                  <DollarSign size={40} className="text-cyan-400 bg-slate-800 p-2 rounded-full shadow-xl" />
-                  <div>
-                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 text-center">Inversión Total</p>
-                    <p className="text-5xl font-black italic tracking-tighter text-white">${totalInvestment.toLocaleString()}</p>
-                  </div>
-                  <div className="w-full pt-6 border-t border-slate-800 flex justify-between text-[11px] font-bold uppercase text-slate-500 px-2">
-                    <span>Eventos</span>
-                    <span className="text-cyan-400">{logs.length}</span>
-                  </div>
-               </div>
-               
-               <div className="lg:col-span-3 bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-12">
-                  {logs.slice().reverse().map(log => (
-                    <div key={log.id} className="flex flex-col sm:flex-row gap-10 border-b border-slate-50 pb-12 last:border-0 last:pb-0">
-                       <div className={`w-16 h-16 rounded-full flex items-center justify-center shrink-0 shadow-lg border-4 border-white ${log.type === 'Eléctrica' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>{log.type === 'Eléctrica' ? <ZapOff size={28} /> : <Hammer size={28} />}</div>
-                       <div className="flex-1 space-y-6">
-                          <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start gap-4">
-                             <div className="text-left">
-                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{log.date} • {log.tech}</p>
-                                <h4 className="font-black text-2xl text-slate-800 uppercase tracking-tighter leading-none">{log.type}</h4>
-                             </div>
-                             <div className="bg-slate-900 text-white px-6 py-2 rounded-[1.2rem] font-mono text-lg font-black shadow-lg">${log.cost.toLocaleString()}</div>
-                          </div>
-                          <p className="text-base italic text-slate-600 bg-slate-50 p-10 rounded-[2.5rem] flex-1 leading-relaxed border border-slate-100 text-left relative">
-                            <span className="absolute -top-3 left-10 px-4 bg-white border border-slate-100 rounded-full text-[10px] font-black text-slate-300 uppercase tracking-widest">Glosa Pericial</span>
-                            "{log.detail}"
-                          </p>
-                       </div>
+                    <div>
+                      <span className={`text-sm md:text-base font-medium transition-all ${task.completed ? 'line-through text-slate-400' : ''}`}>
+                        {task.text}
+                      </span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                          task.priority === 'High' ? 'bg-red-100 text-red-600' :
+                          task.priority === 'Medium' ? 'bg-blue-100 text-blue-600' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {task.priority}
+                        </span>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">{task.category}</span>
+                      </div>
                     </div>
-                  ))}
-               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Intervención */}
-        {showLogForm && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-xl animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-xl rounded-[4rem] p-12 relative flex flex-col items-center text-center shadow-2xl">
-              <button onClick={() => setShowLogForm(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-600 transition-colors p-3 bg-slate-50 rounded-full"><X size={28}/></button>
-              <h3 className="text-3xl font-black uppercase mb-12 tracking-tighter text-slate-900">Nueva Intervención</h3>
-              <div className="w-full space-y-10">
-                <div className="flex gap-4">{['Mecánica', 'Eléctrica'].map(t => (<button key={t} onClick={() => setNewLog({...newLog, type: t})} className={`flex-1 py-6 rounded-[1.8rem] text-xs font-black uppercase tracking-widest transition-all shadow-sm ${newLog.type === t ? 'bg-slate-900 text-white shadow-xl shadow-black/20' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>{t}</button>))}</div>
-                <textarea value={newLog.detail} onChange={(e) => setNewLog({...newLog, detail: e.target.value})} className="w-full p-8 bg-slate-50 border-2 border-slate-50 rounded-[2.5rem] text-base min-h-[140px] outline-none focus:border-cyan-500 text-center font-medium shadow-inner transition-all" placeholder="Descripción de los trabajos técnicos realizados..." />
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Costo CLP</label><input type="number" value={newLog.cost} onChange={(e) => setNewLog({...newLog, cost: e.target.value})} className="w-full p-6 bg-slate-50 border-2 border-slate-50 rounded-3xl font-black text-center text-xl outline-none focus:border-cyan-500 shadow-inner" placeholder="0" /></div>
-                  <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Perito Responsable</label><input type="text" value={newLog.tech} onChange={(e) => setNewLog({...newLog, tech: e.target.value})} className="w-full p-6 bg-slate-50 border-2 border-slate-50 rounded-3xl font-bold text-center outline-none focus:border-cyan-500 shadow-inner" placeholder="Nombre" /></div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => deleteTask(task.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                    <button className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-gray-200">
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => { setLogs([...logs, { ...newLog, id: Date.now(), date: new Date().toISOString().split('T')[0] }]); setShowLogForm(false); }} className="w-full py-7 bg-cyan-600 text-white rounded-[2.2rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:bg-cyan-700 active:scale-95 transition-all shadow-cyan-600/30">Confirmar en Pasaporte Digital</button>
-              </div>
+              )) : (
+                <div className="text-center py-12">
+                  <Target className="mx-auto text-slate-300 mb-4" size={48} />
+                  <p className="text-slate-500">No tasks found. Time to relax or start something new!</p>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </main>
+
+      {/* Mobile Nav */}
+      <nav className={`sm:hidden fixed bottom-0 left-0 right-0 border-t flex justify-around p-4 ${
+        darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+      }`}>
+        <Layout className="text-indigo-600" />
+        <CheckCircle2 className="text-slate-400" />
+        <Calendar className="text-slate-400" />
+        <Settings className="text-slate-400" />
+      </nav>
     </div>
   );
 };
-
-// --- PUNTO DE ENTRADA ROBUSTO ---
-const rootElement = document.getElementById('root');
-if (rootElement) {
-  const root = createRoot(rootElement);
-  root.render(<App />);
-}
 
 export default App;
