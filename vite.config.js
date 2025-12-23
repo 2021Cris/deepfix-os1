@@ -1,14 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Configuración básica para el proyecto Vite + React
 export default defineConfig({
   plugins: [react()],
-  base: '/',
-  build: {
-    outDir: 'dist',
-    target: 'es2020'
-  },
-  server: {
-    historyApiFallback: true
-  }
 })
