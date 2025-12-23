@@ -136,6 +136,12 @@ const App = () => {
       </aside>
 
       <main className="flex-1 p-6 md:p-12 lg:p-16 overflow-y-auto bg-slate-50 relative text-left">
+        {/* Mobile Header */}
+        <header className="lg:hidden flex justify-between items-center mb-8 bg-slate-900 p-4 rounded-2xl text-white shadow-lg">
+           <div className="flex items-center gap-2"><Zap className="text-cyan-400" size={24} /><span className="font-black italic text-sm">DeepFix OS 1.5</span></div>
+           <button onClick={() => setIsSidebarOpen(true)} className="p-2"><Menu /></button>
+        </header>
+
         {view === 'cert' ? (
           <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500 text-left">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end border-b-4 border-cyan-500 pb-1 text-slate-900 gap-4">
@@ -155,7 +161,7 @@ const App = () => {
                       <h3 className="text-xs font-black uppercase text-cyan-400 tracking-widest flex items-center gap-3"><Zap size={20}/> Telemetría de Peak Power</h3>
                       <input type="text" value={sc25Serial} onChange={(e) => setSc25Serial(e.target.value)} className="bg-transparent border-b border-cyan-500/30 text-[10px] font-black text-cyan-400 outline-none text-right px-2" placeholder="ID Terminal" />
                    </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10 text-left">
                       <div className="space-y-4">
                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Potencia Peak Máxima (Watts)</label>
                          <div className="relative">
@@ -172,7 +178,7 @@ const App = () => {
                             </div>
                             <input type="range" min="1" max="60" value={sc25PeakDuration} className="w-full h-2 bg-slate-800 rounded-full appearance-none accent-cyan-600" onChange={e => setSc25PeakDuration(Number(e.target.value))} />
                          </div>
-                         <p className="text-[9px] text-slate-500 font-bold italic uppercase tracking-tighter">Si el peak se sostiene > 30s se considera potencia nominal continua.</p>
+                         <p className="text-[9px] text-slate-500 font-bold italic uppercase tracking-tighter">Si el peak se sostiene por más de 30s se considera potencia nominal continua.</p>
                       </div>
                    </div>
                 </div>
@@ -218,7 +224,7 @@ const App = () => {
                            <input type="range" min="5" max="100" step="1" value={batCapacity} className="w-full h-2 bg-slate-100 rounded-full appearance-none accent-cyan-600" onChange={e => setBatCapacity(Number(e.target.value))} />
                         </div>
                         <div className="space-y-4 text-left">
-                           <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 text-left"><span>Salud Celular (SoH)</span><span className="text-cyan-600">{batSoh}%</span></div>
+                           <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 text-left"><span>Salud (SoH)</span><span className="text-cyan-600">{batSoh}%</span></div>
                            <input type="range" min="0" max="100" value={batSoh} className="w-full h-2 bg-slate-100 rounded-full appearance-none accent-cyan-600" onChange={e => setBatSoh(Number(e.target.value))} />
                         </div>
                      </div>
@@ -273,7 +279,7 @@ const App = () => {
             <header className="flex flex-col md:flex-row justify-between items-center gap-8 border-b border-slate-200 pb-12 text-left">
               <div className="text-left w-full">
                 <h2 className="text-4xl font-black uppercase tracking-tighter block text-left uppercase">Pasaporte Digital</h2>
-                <p className="text-slate-500 text-base italic block text-left text-left font-medium">Trazabilidad inmutable técnica v2025.</p>
+                <p className="text-slate-500 text-base italic block text-left text-left font-medium uppercase tracking-tight">Trazabilidad inmutable técnica v2025.</p>
               </div>
               <button onClick={() => setShowLogForm(true)} className="px-12 py-6 bg-cyan-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest flex items-center gap-4 shadow-2xl hover:bg-cyan-700 transition-all shrink-0 leading-none"><PlusCircle size={24}/> Registrar Obra</button>
             </header>
