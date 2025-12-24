@@ -33,7 +33,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   
   const [view, setView] = useState('dashboard');
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [isNewVehicleModalOpen, setIsNewVehicleModalOpen] = useState(false);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -73,18 +73,20 @@ export default function App() {
       id: 'OT-8800',
       vehicleId: 'V-LEGACY-01',
       sc25Code: 'SC25-HISTORICO',
-      status: 'Cerrada',
+      status: 'Asignada',
       category: 'Revisión Parque',
       problemDescription: 'Pérdida de potencia en pendiente. Revisión de estado del arte necesaria.',
       assignedTech: 'Técnico Senior',
-      workDetail: 'Batería presenta alta impedancia interna. Se sugiere recambio de celdas.',
-      cost: 15000,
-      isAuthorized: true,
+      workDetail: '',
+      cost: 0,
+      isAuthorized: false,
       attachments: [],
       dateAction: '2024-11-05',
       logs: [{ action: 'Migración de BBDD Antigua', user: 'SYSTEM', date: '2024-11-05' }]
     }
   ]);
+
+  const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId), [orders, selectedOrderId]);
 
   // --- Gestión de Autenticación ---
   const handleLogin = (e) => {
@@ -104,7 +106,7 @@ export default function App() {
     setIsLoggedIn(false);
     setLoginForm({ user: '', password: '' });
     setCurrentUser(null);
-    setSelectedOrder(null);
+    setSelectedOrderId(null);
   };
 
   const userRole = currentUser?.role;
@@ -112,37 +114,9 @@ export default function App() {
   const isAsign = userRole === 'ASIGNADOR';
   const isTech = userRole === 'EJECUTOR';
 
-  // --- Lógica de IA ---
-  const generateAiAnalysis = async (problem, currentDetail) => {
-    if (!apiKey) {
-      setAiError("API Key no detectada.");
-      return;
-    }
-    setIsAnalyzing(true);
-    setAiError(null);
-    try {
-      const prompt = `Analiza este caso técnico de electromovilidad. Problema: "${problem}". Observaciones: "${currentDetail}". Genera un diagnóstico profesional para auditoría técnica en deepfix-os1.`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) {
-        const textarea = document.getElementById('workDetailInput');
-        if (textarea) textarea.value = text.trim();
-      }
-    } catch (err) {
-      setAiError("Error en IA.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   // --- Handlers de Datos ---
   const handleUpdateVehicleSpecs = (vehicleId, newSpecs) => {
-    setVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, ...newSpecs, status: 'Actualizado (Auditado)' } : v));
+    setVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, ...newSpecs, status: 'Auditado' } : v));
   };
 
   const handleAddVehicle = (e) => {
@@ -183,22 +157,51 @@ export default function App() {
     };
     setOrders([newO, ...orders]);
     setIsNewOrderModalOpen(false);
+    setView('orders');
   };
 
-  const handleUpdateOT = (id, updates, logAction) => {
+  const handleUpdateOT = (id, updates, logAction, shouldClose = false) => {
     setOrders(prev => prev.map(o => o.id === id ? {
       ...o, ...updates, 
       logs: [...(o.logs || []), { action: logAction, user: currentUser.name, date: new Date().toLocaleString() }]
     } : o));
-    setSelectedOrder(null);
+    if (shouldClose) setSelectedOrderId(null);
+  };
+
+  const generateAiAnalysis = async (problem, currentDetail) => {
+    if (!apiKey) {
+      setAiError("API Key no configurada.");
+      return;
+    }
+    setIsAnalyzing(true);
+    setAiError(null);
+    try {
+      const prompt = `Analiza este caso técnico de electromovilidad. Problema: "${problem}". Observaciones: "${currentDetail}". Genera un diagnóstico profesional.`;
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        const textarea = document.getElementById('workDetailInput');
+        if (textarea) textarea.value = text.trim();
+      }
+    } catch (err) {
+      setAiError("Error en IA.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const stats = useMemo(() => {
     const closed = orders.filter(o => o.status === 'Cerrada');
     const spent = closed.reduce((acc, curr) => acc + (curr.cost || 0), 0);
     const avgSOH = vehicles.length > 0 ? vehicles.reduce((acc, v) => acc + v.batterySOH, 0) / vehicles.length : 0;
+    const maintenanceCount = orders.filter(o => o.status !== 'Cerrada').length;
     return { 
-      availability: vehicles.length > 0 ? (((vehicles.length - orders.filter(o => o.status !== 'Cerrada').length) / vehicles.length) * 100).toFixed(0) : 0,
+      availability: vehicles.length > 0 ? (((vehicles.length - maintenanceCount) / vehicles.length) * 100).toFixed(0) : 0,
       spent, 
       avgSOH: avgSOH.toFixed(1), 
       pending: orders.filter(o => o.status === 'Pendiente Autorización').length 
@@ -208,33 +211,31 @@ export default function App() {
   // --- Vistas ---
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-        <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-12 shadow-2xl animate-in zoom-in-95 duration-500">
-          <div className="flex flex-col items-center mb-10 text-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 selection:bg-blue-500/30">
+        <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-12 shadow-2xl animate-in zoom-in-95 duration-500 text-center">
+          <div className="flex flex-col items-center mb-10">
             <div className="bg-blue-600 p-4 rounded-3xl shadow-xl mb-6 shadow-blue-900/40">
               <ShieldAlert className="text-white" size={32} />
             </div>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter italic">deepfix<span className="text-blue-500 not-italic">os1</span></h1>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">Gestión de Parque y Activos Críticos</p>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">Seguridad Operativa de Activos</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-5 text-left">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Usuario del Sistema</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Usuario</label>
               <input 
-                type="text" 
-                required
+                type="text" required
                 value={loginForm.user}
                 onChange={(e) => setLoginForm({...loginForm, user: e.target.value})}
-                placeholder="Ej: autorizador / tecnico"
+                placeholder="autorizador / tecnico"
                 className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               />
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Contraseña</label>
               <input 
-                type="password" 
-                required
+                type="password" required
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
                 placeholder="••••••••"
@@ -243,7 +244,7 @@ export default function App() {
             </div>
             {loginError && <p className="text-red-400 text-[10px] font-bold uppercase text-center animate-pulse">{loginError}</p>}
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-xl shadow-blue-900/20 transition-all mt-4">
-              Iniciar Sesión
+              Ingresar al Sistema
             </button>
           </form>
         </div>
@@ -253,13 +254,13 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
-      {/* Sidebar con Restricciones */}
+      {/* Sidebar */}
       <aside className="w-72 border-r border-slate-800 bg-slate-900/40 p-8 flex flex-col">
-        <div className="flex items-center space-x-4 mb-12">
-          <div className="bg-blue-600 p-2.5 rounded-2xl shadow-xl">
+        <div className="flex items-center space-x-4 mb-12 px-2">
+          <div className="bg-blue-600 p-2.5 rounded-2xl shadow-xl shadow-blue-900/40">
             <Settings2 className="text-white" size={24} />
           </div>
-          <h1 className="text-xl font-black tracking-tighter uppercase text-left italic leading-none">deepfix<br/><span className="text-[10px] text-blue-500 font-bold tracking-[0.3em] not-italic text-left">os1 - activos</span></h1>
+          <h1 className="text-xl font-black tracking-tighter uppercase text-left leading-none italic">deepfix<br/><span className="text-[10px] text-blue-500 font-bold tracking-[0.3em] not-italic">os1 - activos</span></h1>
         </div>
         
         <nav className="space-y-3 flex-1 text-left">
@@ -276,9 +277,9 @@ export default function App() {
           )}
         </nav>
 
-        <div className="mt-auto space-y-4 pt-10 border-t border-slate-800">
+        <div className="mt-auto space-y-4 pt-10 border-t border-slate-800 text-left">
           <div className="flex items-center space-x-3 p-4 bg-slate-900 rounded-2xl border border-slate-800">
-            <div className="bg-slate-800 p-2 rounded-xl">
+            <div className="bg-slate-800 p-2 rounded-xl text-center">
                {isAuth ? <ShieldCheck size={18} className="text-purple-400" /> : isAsign ? <Briefcase size={18} className="text-orange-400" /> : <Wrench size={18} className="text-blue-400" />}
             </div>
             <div className="text-left overflow-hidden">
@@ -295,14 +296,14 @@ export default function App() {
 
       <main className="flex-1 overflow-y-auto p-12 custom-scrollbar text-left">
         {view === 'dashboard' && (
-          <div className="space-y-10 animate-in fade-in duration-500 max-w-6xl mx-auto">
+          <div className="space-y-10 animate-in fade-in duration-500 max-w-6xl mx-auto text-left">
             <header className="flex justify-between items-end">
-              <div>
-                <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none text-left">Monitor Parque Activos</h2>
-                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2">Estado del Arte: <span className="text-blue-500 font-black">deepfix-os1</span></p>
+              <div className="text-left">
+                <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">Monitor Parque Activos</h2>
+                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Estado de Flota: <span className="text-blue-500">deepfix-os1</span></p>
               </div>
               <div className="flex gap-4">
-                 {(isAuth || isAsign) && <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-slate-700">Registrar Legado/Nuevo</button>}
+                 {(isAuth || isAsign) && <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-slate-700">Inyectar BBDD</button>}
                  {(isAuth || isAsign) && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all">Apertura OT</button>}
               </div>
             </header>
@@ -310,51 +311,49 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
               <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl">
                 <Activity className="text-blue-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Disponibilidad</h3>
+                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-2">Disponibilidad</h3>
                 <p className="text-5xl font-black text-white">{stats.availability}%</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl">
                 <Battery className="text-emerald-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Salud SOH Prom.</h3>
+                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-2 text-center">Salud SOH Prom.</h3>
                 <p className="text-5xl font-black text-emerald-400">{stats.avgSOH}%</p>
               </div>
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl">
+              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
                 <Database className="text-purple-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Activos BBDD</h3>
+                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-2">Activos BBDD</h3>
                 <p className="text-5xl font-black text-white">{vehicles.length}</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
                 <AlertCircle className="text-orange-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Esperando OK</h3>
+                <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Esperando OK</h3>
                 <p className="text-5xl font-black text-orange-400">{stats.pending}</p>
               </div>
             </div>
 
-            {/* Listado de Parque */}
+            {/* Caracterización del Parque */}
             <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 shadow-2xl">
-              <h3 className="font-black text-xl mb-8 uppercase flex items-center tracking-tighter"><RefreshCw className="mr-3 text-blue-500" /> Caracterización del Parque (Estado del Arte)</h3>
-              <div className="grid grid-cols-1 gap-4">
+              <h3 className="font-black text-xl mb-8 uppercase flex items-center tracking-tighter"><RefreshCw className="mr-3 text-blue-500" /> Estado del Arte y Parque Existente</h3>
+              <div className="grid grid-cols-1 gap-4 text-left">
                  {vehicles.map(v => (
-                   <div key={v.id} className="grid grid-cols-1 md:grid-cols-5 gap-6 items-center p-6 bg-slate-950/50 rounded-[2rem] border border-slate-800 hover:border-blue-500/30 transition-all group">
+                   <div key={v.id} className="grid grid-cols-1 md:grid-cols-5 gap-6 items-center p-6 bg-slate-950/50 rounded-[2rem] border border-slate-800 group text-left">
                      <div className="text-left col-span-1">
-                       <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{v.plate}</p>
+                       <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest leading-none">{v.plate}</p>
                        <p className="text-base font-black text-white mt-1 uppercase leading-none truncate">{v.model}</p>
-                       <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mt-2 inline-block ${v.id.includes('LEGACY') ? 'bg-amber-500/20 text-amber-500' : 'bg-blue-500/20 text-blue-500'}`}>{v.id.includes('LEGACY') ? 'LEGACY' : 'ACTUALIZADO'}</span>
                      </div>
                      <div className="text-left col-span-2 grid grid-cols-1 gap-2 border-l border-slate-800 pl-6">
-                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center"><Cpu size={12} className="mr-2 text-slate-600"/> Motor: <span className="text-slate-300 ml-1">{v.motorSpecs}</span></p>
-                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center"><Battery size={12} className="mr-2 text-slate-600"/> Batería: <span className="text-slate-300 ml-1">{v.batterySpecs}</span></p>
-                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center"><Zap size={12} className="mr-2 text-slate-600"/> Control: <span className="text-slate-300 ml-1">{v.controllerSpecs}</span></p>
+                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center leading-none"><Cpu size={12} className="mr-2 text-slate-600"/> Motor: <span className="text-slate-300 ml-1">{v.motorSpecs}</span></p>
+                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center leading-none"><Battery size={12} className="mr-2 text-slate-600"/> Batería: <span className="text-slate-300 ml-1">{v.batterySpecs}</span></p>
+                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center leading-none"><Zap size={12} className="mr-2 text-slate-600"/> Control: <span className="text-slate-300 ml-1">{v.controllerSpecs}</span></p>
                      </div>
                      <div className="col-span-2 text-right">
                        <div className="flex justify-between items-center mb-2">
                          <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Salud Batería (SOH)</p>
                          <p className={`text-[10px] font-black ${v.batterySOH < 75 ? 'text-red-400' : 'text-emerald-400'}`}>{v.batterySOH}%</p>
                        </div>
-                       <div className="h-2 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                       <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                          <div className={`h-full transition-all duration-1000 ${v.batterySOH < 75 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${v.batterySOH}%` }}></div>
                        </div>
-                       <p className="text-[8px] text-slate-500 mt-2 font-black uppercase tracking-widest">{v.cycles} Ciclos Registrados</p>
                      </div>
                    </div>
                  ))}
@@ -364,21 +363,24 @@ export default function App() {
         )}
 
         {view === 'orders' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in slide-in-from-bottom-6 duration-700 max-w-7xl mx-auto pb-20">
-            <div className="space-y-6">
-              <h2 className="text-3xl font-black uppercase tracking-tighter mb-10 text-left">Gstión de Órdenes</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in slide-in-from-bottom-6 duration-700 max-w-7xl mx-auto pb-20 text-left">
+            <div className="space-y-6 text-left">
+              <div className="flex justify-between items-center mb-10">
+                <h2 className="text-3xl font-black uppercase tracking-tighter">Gestión de Órdenes</h2>
+                {(isAuth || isAsign) && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all">+ Nueva OT</button>}
+              </div>
               <div className="space-y-4 overflow-y-auto max-h-[70vh] pr-4 custom-scrollbar text-left">
                 {orders.map(o => {
                   const v = vehicles.find(veh => veh.id === o.vehicleId);
                   return (
-                    <div key={o.id} onClick={() => setSelectedOrder(o)} className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer relative ${selectedOrder?.id === o.id ? 'border-blue-500 bg-blue-600/5 ring-4 ring-blue-500/5 shadow-2xl' : 'border-slate-800 bg-slate-900 hover:border-slate-700 shadow-lg'}`}>
+                    <div key={o.id} onClick={() => setSelectedOrderId(o.id)} className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer relative ${selectedOrderId === o.id ? 'border-blue-500 bg-blue-600/5 ring-4 ring-blue-500/5 shadow-2xl' : 'border-slate-800 bg-slate-900 hover:border-slate-700 shadow-lg'}`}>
                       <div className="flex justify-between items-start mb-4">
                         <div className="text-left">
-                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{o.id}</span>
-                          <h4 className="font-black text-xl leading-none mt-1 uppercase tracking-tight">{v?.model || 'Activo'} ({v?.plate})</h4>
-                          <p className="text-[9px] font-black text-blue-500 mt-1 uppercase tracking-widest">Ref SC-25: {o.sc25Code}</p>
+                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest leading-none">{o.id}</span>
+                          <h4 className="font-black text-xl leading-none mt-2 uppercase tracking-tight">{v?.model || 'Activo'} ({v?.plate})</h4>
+                          <p className="text-[9px] font-black text-blue-500 mt-2 uppercase tracking-widest leading-none">SC-25: {o.sc25Code}</p>
                         </div>
-                        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${o.status.includes('Pendiente') ? 'border-purple-500 text-purple-400' : 'border-slate-700 text-slate-400'}`}>{o.status}</span>
+                        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${o.status.includes('Pendiente') ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-400'}`}>{o.status}</span>
                       </div>
                     </div>
                   );
@@ -395,20 +397,19 @@ export default function App() {
                       <p className="text-slate-500 text-[10px] uppercase font-black mt-3 italic tracking-widest leading-none">Categoría: <span className="text-blue-400">{selectedOrder.category}</span></p>
                     </div>
                     <div className="bg-slate-800 p-6 rounded-3xl text-center border border-slate-700 min-w-[130px] shadow-inner">
-                      <p className="text-[9px] text-slate-500 font-black mb-1 uppercase tracking-widest leading-none text-center">Monto</p>
+                      <p className="text-[9px] text-slate-500 font-black mb-1 uppercase tracking-widest leading-none text-center">Costo Auditado</p>
                       <p className="text-2xl font-black text-white leading-none text-center">${(selectedOrder.cost || 0).toLocaleString()}</p>
                     </div>
                   </header>
 
-                  {/* Formulario de Ejecución con Modificación de Parámetros */}
+                  {/* Formulario de Ejecución: Permite modificar el monto libremente */}
                   {selectedOrder.status === 'Asignada' && (isTech || isAuth) && (
                     <div className="space-y-8 text-left">
                        <form onSubmit={(e) => {
                           e.preventDefault();
                           const formData = new FormData(e.currentTarget);
-                          const cost = parseFloat(formData.get('cost')) || 0;
+                          const newCost = parseFloat(formData.get('costInput')) || 0;
                           
-                          // Modificar parámetros técnicos si es Revisión Parque
                           if (selectedOrder.category === 'Revisión Parque') {
                              handleUpdateVehicleSpecs(selectedOrder.vehicleId, {
                                motorSpecs: formData.get('motorUpdate'),
@@ -418,68 +419,75 @@ export default function App() {
                              });
                           }
 
-                          const updates = { workDetail: formData.get('work'), cost };
-                          if (cost > umbralGasto && !selectedOrder.isAuthorized) {
-                            handleUpdateOT(selectedOrder.id, { ...updates, status: 'Pendiente Autorización' }, 'Solicitud de autorización por presupuesto elevado');
+                          const updates = { workDetail: formData.get('workInput'), cost: newCost };
+                          if (newCost > umbralGasto && !selectedOrder.isAuthorized) {
+                            handleUpdateOT(selectedOrder.id, { ...updates, status: 'Pendiente Autorización' }, 'Solicitud de autorización enviada por monto elevado');
                           } else {
-                            handleUpdateOT(selectedOrder.id, { ...updates, status: 'Cerrada' }, 'OT cerrada tras auditoría técnica');
+                            handleUpdateOT(selectedOrder.id, { ...updates, status: 'Cerrada' }, 'Mantenimiento ejecutado y orden cerrada');
                           }
                        }} className="space-y-8 text-left">
                           
-                          {/* Campos de Caracterización (Editables durante el trabajo) */}
-                          <div className="p-8 bg-slate-950/50 border border-slate-800 rounded-[2.5rem] space-y-6">
-                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] mb-4 flex items-center leading-none"><Save size={14} className="mr-2"/> Actualización de Caracterización</p>
-                             <div className="grid grid-cols-1 gap-4">
-                                <div className="space-y-2">
-                                   <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-2">Especificación Motor (W / Modelo)</label>
-                                   <input name="motorUpdate" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.motorSpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                </div>
-                                <div className="space-y-2">
-                                   <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-2">Especificación Batería (V / Ah)</label>
-                                   <input name="batteryUpdate" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.batterySpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                </div>
+                          {/* Caracterización editable */}
+                          <div className="p-8 bg-slate-950/50 border border-slate-800 rounded-[2.5rem] space-y-6 text-left">
+                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] mb-4 flex items-center leading-none"><Save size={14} className="mr-2"/> Parámetros de Electromovilidad</p>
+                             <div className="grid grid-cols-1 gap-4 text-left">
+                                <input name="motorUpdate" placeholder="Motor Specs" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.motorSpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
+                                <input name="batteryUpdate" placeholder="Battery Specs" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.batterySpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
                                 <div className="grid grid-cols-2 gap-4">
-                                   <div className="space-y-2">
-                                      <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-2">Controlador (A)</label>
-                                      <input name="controllerUpdate" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.controllerSpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                   </div>
-                                   <div className="space-y-2">
-                                      <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-2">Audit SOH (%)</label>
-                                      <input name="sohUpdate" type="number" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.batterySOH} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                   </div>
+                                   <input name="controllerUpdate" placeholder="Controller A" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.controllerSpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
+                                   <input name="sohUpdate" type="number" placeholder="SOH %" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.batterySOH} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
                                 </div>
                              </div>
                           </div>
 
                           <div className="space-y-6 text-left">
-                             <div className="flex justify-between items-center text-left">
-                                <label className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] flex items-center leading-none"><Sparkles size={18} className="mr-3"/> Diagnóstico e Informe Técnico</label>
-                                <button 
-                                  type="button" 
-                                  onClick={() => generateAiAnalysis(selectedOrder.problemDescription, document.getElementById('workDetailInput').value)} 
-                                  disabled={isAnalyzing} 
-                                  className="bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-blue-600/30 flex items-center shadow-lg"
-                                >
+                             <div className="flex justify-between items-center text-left mb-2">
+                                <label className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] flex items-center leading-none"><Sparkles size={18} className="mr-3"/> Informe de Diagnóstico</label>
+                                <button type="button" onClick={() => generateAiAnalysis(selectedOrder.problemDescription, document.getElementById('workDetailInput').value)} disabled={isAnalyzing} className="bg-blue-600/10 text-blue-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center shadow-lg border border-blue-600/30">
                                    {isAnalyzing ? <Loader2 size={12} className="mr-2 animate-spin"/> : <Sparkles size={12} className="mr-2"/>} Informe IA
                                 </button>
                              </div>
-                             <textarea id="workDetailInput" name="work" required rows="5" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-10 text-sm outline-none font-medium leading-relaxed text-white focus:ring-2 focus:ring-blue-500 shadow-inner" placeholder="Escriba aquí los detalles de la intervención técnica..."></textarea>
-                             <div className="grid grid-cols-2 gap-6">
+                             <textarea id="workDetailInput" name="workInput" required rows="5" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-10 text-sm outline-none text-white focus:ring-2 focus:ring-blue-500" placeholder="Análisis técnico detallado..."></textarea>
+                             <div className="grid grid-cols-2 gap-6 text-left">
                                <div className="space-y-2 text-left">
-                                   <label className="text-[9px] font-black text-slate-600 uppercase ml-4 tracking-widest">Presupuesto Ejecución ($)</label>
-                                   <input name="cost" required type="number" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-8 py-5 text-xl font-black text-white shadow-inner outline-none" placeholder="0" />
+                                   <label className="text-[9px] font-black text-slate-600 uppercase ml-4 tracking-widest leading-none">Monto Intervención ($)</label>
+                                   <input name="costInput" required type="number" defaultValue={selectedOrder.cost || 0} className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-8 py-5 text-xl font-black text-white shadow-inner outline-none focus:ring-2 focus:ring-blue-500" />
                                </div>
-                               <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-3xl font-black text-[11px] uppercase text-white shadow-xl transition-all self-end h-[68px] tracking-widest">GUARDAR Y CERRAR</button>
+                               <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-3xl font-black text-[11px] uppercase text-white shadow-xl transition-all self-end h-[68px] tracking-[0.2em]">GUARDAR Y CERRAR</button>
                              </div>
                           </div>
                        </form>
                     </div>
                   )}
 
-                  {/* Historial Footer */}
+                  {/* Bloque del Autorizador */}
+                  {selectedOrder.status === 'Pendiente Autorización' && isAuth && (
+                    <div className="pt-10 border-t border-slate-800 space-y-8 text-left animate-in fade-in duration-700">
+                       <div className="bg-purple-600/10 border border-purple-500/30 p-10 rounded-[3rem] text-center shadow-inner">
+                          <AlertTriangle size={48} className="text-purple-400 mx-auto mb-6 animate-pulse" />
+                          <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-purple-400 mb-6 leading-none">Validación de Costo Excedido</h4>
+                          <form onSubmit={(e) => {
+                             e.preventDefault();
+                             const finalValue = parseFloat(e.currentTarget.finalValue.value) || 0;
+                             handleUpdateOT(selectedOrder.id, { cost: finalValue, status: 'Asignada', isAuthorized: true }, `Presupuesto de $${finalValue.toLocaleString()} autorizado por jefatura.`);
+                          }} className="space-y-8 text-center">
+                             <div className="space-y-3 max-w-[220px] mx-auto text-center">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Validar Monto Final ($)</label>
+                                <input name="finalValue" type="number" defaultValue={selectedOrder.cost} className="w-full bg-slate-900 border border-purple-500/40 rounded-2xl px-6 py-5 text-center text-2xl font-black text-white outline-none focus:ring-2 focus:ring-purple-500" />
+                             </div>
+                             <p className="text-xs text-slate-400 italic px-8">Autorice el monto propuesto o ajústelo antes de liberar la orden para su cierre.</p>
+                             <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 py-6 rounded-[2rem] font-black text-xs uppercase text-white shadow-xl flex items-center justify-center transition-all tracking-widest">
+                                <ThumbsUp size={20} className="mr-3"/> AUTORIZAR MONTO (OK)
+                             </button>
+                          </form>
+                       </div>
+                    </div>
+                  )}
+
+                  {/* Historial Auditoría */}
                   <div className="pt-12 border-t border-slate-800/50 text-left">
-                    <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-10 flex items-center leading-none italic font-bold tracking-widest text-left"><History size={16} className="mr-3" /> Auditoría de Trazabilidad</h4>
-                    <div className="space-y-8 relative text-left">
+                    <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-10 flex items-center leading-none italic font-bold tracking-widest text-left"><History size={16} className="mr-3" /> Trazabilidad Técnica Inmutable</h4>
+                    <div className="space-y-8 relative">
                       {(selectedOrder.logs || []).map((log, idx) => (
                         <div key={idx} className="flex gap-8 relative text-left">
                           <div className={`w-4 h-4 rounded-full mt-1.5 shrink-0 z-10 border-[4px] border-slate-950 ${idx === selectedOrder.logs.length - 1 ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]' : 'bg-slate-700 opacity-50'}`}></div>
@@ -496,7 +504,7 @@ export default function App() {
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-10 py-60">
                   <Database size={120} className="mb-8" />
                   <p className="font-black text-3xl uppercase tracking-[0.5em]">AUDIT CORE</p>
-                  <p className="text-sm mt-4 font-bold tracking-widest uppercase text-center">Seleccione un activo para auditoría</p>
+                  <p className="text-sm mt-4 font-bold tracking-widest uppercase text-center leading-none">Seleccione un activo para auditar</p>
                 </div>
               )}
             </div>
@@ -511,10 +519,10 @@ export default function App() {
              </header>
 
              <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-12 shadow-2xl text-left">
-                <div className="flex items-center justify-between mb-8 text-left">
+                <div className="flex items-center justify-between mb-8 text-left leading-none">
                    <div className="text-left">
                       <h4 className="text-xl font-black text-white uppercase tracking-tight">Umbral de Aprobación Crítica</h4>
-                      <p className="text-xs text-slate-500 mt-1">Límite financiero para el cierre inmediato de órdenes técnicas.</p>
+                      <p className="text-xs text-slate-500 mt-2">Límite financiero para el cierre inmediato de órdenes técnicas.</p>
                    </div>
                    <p className="text-4xl font-black text-blue-500 tracking-tighter leading-none">${umbralGasto.toLocaleString()}</p>
                 </div>
@@ -532,27 +540,24 @@ export default function App() {
         )}
       </main>
 
-      {/* Modals con campos de caracterización */}
+      {/* Modals */}
       {isNewVehicleModalOpen && (
         <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[4rem] p-16 animate-in zoom-in-95 duration-500 shadow-2xl">
             <h3 className="text-3xl font-black mb-10 text-white uppercase tracking-tighter text-center leading-none">Inyectar Activo Parque</h3>
             <form onSubmit={handleAddVehicle} className="space-y-6 text-left">
               <div className="grid grid-cols-2 gap-4">
-                <input name="model" required placeholder="Modelo Activo" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-6 py-4 text-sm font-bold text-white outline-none" />
-                <input name="plate" required placeholder="Patente / Serie" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-6 py-4 text-sm font-mono font-bold text-white outline-none uppercase" />
+                <input name="model" required placeholder="Modelo" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-6 py-4 text-sm font-bold text-white outline-none" />
+                <input name="plate" required placeholder="Patente" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-6 py-4 text-sm font-mono font-bold text-white outline-none uppercase" />
               </div>
-              <div className="space-y-4 pt-4 border-t border-slate-800 text-left">
-                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest text-left leading-none">Caracterización Base</p>
-                <div className="space-y-3">
-                  <input name="motorSpecs" required placeholder="Motor (W / Modelo)" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none" />
-                  <input name="batterySpecs" required placeholder="Batería (V / Ah)" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none" />
-                  <input name="controllerSpecs" required placeholder="Controlador (A)" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none" />
-                  <select name="type" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none">
-                    <option value="Bicicleta Eléctrica">Bicicleta Eléctrica</option>
-                    <option value="Tricicleta Eléctrica">Tricicleta Eléctrica</option>
-                  </select>
-                </div>
+              <div className="space-y-3">
+                <input name="motorSpecs" required placeholder="Motor Specs" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white" />
+                <input name="batterySpecs" required placeholder="Battery Specs" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white" />
+                <input name="controllerSpecs" required placeholder="Controller Specs" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white" />
+                <select name="type" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none">
+                  <option value="Bicicleta Eléctrica">Bicicleta Eléctrica</option>
+                  <option value="Tricicleta Eléctrica">Tricicleta Eléctrica</option>
+                </select>
               </div>
               <div className="flex gap-4 pt-6 text-center">
                 <button type="button" onClick={() => setIsNewVehicleModalOpen(false)} className="flex-1 py-6 rounded-[2rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400">Cancelar</button>
@@ -563,10 +568,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal Apertura */}
       {isNewOrderModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8 text-left">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[4.5rem] p-20 animate-in zoom-in-95 duration-500 shadow-2xl text-left">
+        <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[4.5rem] p-20 animate-in zoom-in-95 duration-500 shadow-2xl">
             <h3 className="text-4xl font-black mb-10 text-white uppercase tracking-tighter text-left leading-none">Apertura Caso</h3>
             <form onSubmit={handleCreateOrder} className="space-y-8 text-left">
               <div className="grid grid-cols-2 gap-4">
@@ -586,10 +590,9 @@ export default function App() {
                   <select name="category" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none">
                     <option value="Revisión Parque">Revisión Parque (Estado del Arte)</option>
                     <option value="Correctivo">Mantenimiento Correctivo</option>
-                    <option value="Preventivo">Mantenimiento Preventivo</option>
                   </select>
               </div>
-              <textarea name="problemDescription" required rows="4" className="w-full bg-slate-800 border border-slate-700 rounded-[3rem] p-10 text-sm font-medium leading-relaxed text-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Descripción técnica inicial..."></textarea>
+              <textarea name="problemDescription" required rows="4" className="w-full bg-slate-800 border border-slate-700 rounded-[3rem] p-10 text-sm font-medium leading-relaxed text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Descripción técnica inicial..."></textarea>
               <div className="flex gap-6 pt-6 text-center">
                 <button type="button" onClick={() => setIsNewOrderModalOpen(false)} className="flex-1 py-7 rounded-[2.5rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400">Cancelar</button>
                 <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-7 rounded-[2.5rem] font-black text-[11px] uppercase text-white shadow-2xl">Iniciar OT</button>
