@@ -2,53 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Configuración global de la interfaz */
 :root {
   color-scheme: dark;
 }
 
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #020617; /* Slate 950 */
+  margin: 0;
+  background-color: #020617;
   color: #f8fafc;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-#root {
-  min-height: 100%;
-}
-
-/* Barra de desplazamiento personalizada (Premium) */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #1e293b; /* Slate 800 */
+  background: #1e293b;
   border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #334155; /* Slate 700 */
-}
-
-/* Animaciones de entrada */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-in {
-  animation: fadeIn 0.5s ease-out forwards;
 }
