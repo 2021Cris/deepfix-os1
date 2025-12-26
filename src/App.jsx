@@ -105,7 +105,7 @@ export default function App() {
   };
 
   // --- Estado de Trazabilidad ---
-  const [traceForm, setTraceForm] = useState({
+  const [traceState, setTraceState] = useState({
     stage: 'Diagnóstico',
     document: 'Certificado de Disposición',
     gestor: 'REP Chile'
@@ -114,13 +114,15 @@ export default function App() {
   // --- Manejo de Sesión ---
   const handleLogin = (e) => {
     e.preventDefault();
-    const cred = CREDENTIALS[loginForm.user.toLowerCase()];
+    const username = loginForm.user.toLowerCase().trim();
+    const cred = CREDENTIALS[username];
     if (cred && cred.password === loginForm.password) {
       setIsLoggedIn(true);
-      setCurrentUser({ name: loginForm.user, role: cred.role });
+      setCurrentUser({ name: username, role: cred.role });
       setView('dashboard');
+      setLoginError('');
     } else {
-      setLoginError('Credenciales incorrectas');
+      setLoginError('Usuario o contraseña incorrectos');
     }
   };
 
@@ -143,9 +145,6 @@ export default function App() {
     setTimeout(() => window.print(), 500);
   };
 
-  // --- Componentes Auxiliares ---
-  const SelectedOrderData = useMemo(() => orders.find(o => o.id === selectedOrderId), [orders, selectedOrderId]);
-
   // --- Renderizado de Documento ---
   if (printDoc) {
     const { type, order, vehicle, client } = printDoc;
@@ -161,52 +160,52 @@ export default function App() {
         <div className="flex justify-between items-start border-b-4 border-slate-900 pb-8 mb-10">
           <div>
             <h1 className="text-4xl font-black uppercase tracking-tighter italic">DeepFix<span className="text-blue-600 not-italic">OS</span></h1>
-            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mt-1">Gestión Técnica de Electromovilidad</p>
+            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mt-1">Gestión Técnica y Economía Circular</p>
           </div>
           <div className="text-right">
-            <div className="bg-slate-900 text-white px-5 py-2 text-xs font-black uppercase mb-2">
+            <div className="bg-slate-900 text-white px-5 py-2 text-xs font-black uppercase mb-2 leading-none">
               {isCert ? 'Certificado de Cumplimiento' : isBatteryHistory ? 'Hoja de Vida de Batería' : 'Comprobante de Servicio'}
             </div>
-            <p className="text-xs font-bold uppercase">ID Activo: {vehicle.id}</p>
-            <p className="text-[10px] text-slate-500">Emisión: {new Date().toLocaleDateString()}</p>
+            <p className="text-xs font-bold uppercase">Activo: {vehicle.id}</p>
+            <p className="text-[10px] text-slate-500">Fecha: {new Date().toLocaleDateString()}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-12 mb-12">
            <div className="space-y-6">
               <section>
-                 <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-3 pb-1">Identificación del Activo</h2>
-                 <p className="text-xs"><strong>Cliente Solicitante:</strong> {client.name}</p>
-                 <p className="text-xs"><strong>Vehículo / Chasis:</strong> {vehicle.model} ({vehicle.plate})</p>
+                 <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-3 pb-1">Identificación</h2>
+                 <p className="text-xs"><strong>Cliente:</strong> {client.name}</p>
+                 <p className="text-xs"><strong>Vehículo:</strong> {vehicle.model} ({vehicle.plate})</p>
                  <p className="text-xs"><strong>ID Chasis:</strong> {vehicle.id}</p>
                  <p className="text-xs"><strong>Técnico Responsable:</strong> {order.assignedTech}</p>
               </section>
               <section>
                  <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-3 pb-1">Estado Técnico</h2>
                  <p className="text-xs"><strong>Potencia Real ($P_{out}$):</strong> {vehicle.poutActual}W</p>
-                 <p className="text-xs"><strong>Salud de Batería (SoH):</strong> {vehicle.currentSoH}%</p>
-                 <p className="text-xs"><strong>Categoría Ley REP:</strong> {getCircularDestination(vehicle.currentSoH).label}</p>
+                 <p className="text-xs"><strong>Salud Batería (SoH):</strong> {vehicle.currentSoH}%</p>
+                 <p className="text-xs"><strong>Destino Circular:</strong> {getCircularDestination(vehicle.currentSoH).label}</p>
               </section>
            </div>
            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col items-center justify-center space-y-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase">Firma Digital SHA-256</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase">Validación SHA-256</p>
               <QrCode size={120} className="text-slate-900" />
               <p className="text-[8px] font-mono text-center break-all opacity-50 uppercase leading-relaxed px-4">
-                DFOS_CERT_{vehicle.id}_{order.id}_{Math.random().toString(36).substr(2, 9)}
+                DFOS_CERT_{vehicle.id}_{order.id}_{Math.random().toString(36).substr(2, 9).toUpperCase()}
               </p>
            </div>
         </div>
 
         {isBatteryHistory && (
           <div className="mb-12">
-            <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-4 pb-1 italic">Bitácora de Trazabilidad (Circularidad)</h2>
+            <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-4 pb-1 italic">Bitácora de Trazabilidad</h2>
             <table className="w-full text-left text-[11px]">
                <thead>
                   <tr className="border-b-2 border-slate-100">
                      <th className="py-2">Etapa</th>
-                     <th className="py-2">Documento Emitido</th>
-                     <th className="py-2">Gestor de Residuos</th>
-                     <th className="py-2">N° Folio SIDREP</th>
+                     <th className="py-2">Documento</th>
+                     <th className="py-2">Gestor</th>
+                     <th className="py-2">Folio SIDREP</th>
                   </tr>
                </thead>
                <tbody>
@@ -214,7 +213,7 @@ export default function App() {
                      <td className="py-3 font-bold">{vehicle.batteryTrace?.stage || 'Diagnóstico'}</td>
                      <td className="py-3">{vehicle.batteryTrace?.document || 'Acta Inicial'}</td>
                      <td className="py-3">{vehicle.batteryTrace?.gestor || 'DeepFix'}</td>
-                     <td className="py-3">{vehicle.batteryTrace?.folio || 'EN TRAMITE'}</td>
+                     <td className="py-3">{vehicle.batteryTrace?.folio || 'N/A'}</td>
                   </tr>
                </tbody>
             </table>
@@ -226,7 +225,7 @@ export default function App() {
             <h2 className="text-[10px] font-black uppercase text-slate-500 mb-4 tracking-widest">Resumen de Intervención ({order.workType})</h2>
             <p className="text-xs italic text-slate-700 leading-relaxed">"{order.workDetail}"</p>
             <div className="mt-6 pt-6 border-t border-slate-200">
-               <p className="text-[9px] font-black text-slate-400 uppercase">Valorización del Trabajo</p>
+               <p className="text-[9px] font-black text-slate-400 uppercase">Presupuesto Final</p>
                <p className="text-2xl font-black">${order.cost.toLocaleString()} CLP</p>
             </div>
           </div>
@@ -238,7 +237,7 @@ export default function App() {
               <p className="text-[9px] text-slate-500 font-bold uppercase mt-2">Firma Técnico Perito</p>
            </div>
            <div>
-              <p className="text-xs font-black uppercase underline">DeepFix OS Network</p>
+              <p className="text-xs font-black uppercase underline">DeepFix OS Chile</p>
               <p className="text-[9px] text-slate-500 font-bold uppercase mt-2">Sello de Cumplimiento Legal</p>
            </div>
         </div>
@@ -246,7 +245,7 @@ export default function App() {
     );
   }
 
-  // --- Interfaz de Usuario ---
+  // --- Render Login ---
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
@@ -256,20 +255,30 @@ export default function App() {
                 <RefreshCw className="text-white" size={32} />
              </div>
              <h1 className="text-4xl font-black text-white uppercase tracking-tighter italic">DeepFix<span className="text-blue-500 not-italic">OS</span></h1>
-             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-3">Seguridad Técnica de Flota</p>
+             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-3">Peritaje de Electromovilidad</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-5 text-left">
-             <input type="text" placeholder="Usuario" required className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={loginForm.user} onChange={e => setLoginForm({...loginForm, user: e.target.value})} />
-             <input type="password" placeholder="Contraseña" required className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} />
-             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-xl transition-all mt-4 leading-none">Acceso Pericial</button>
+             <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Usuario</label>
+                <input type="text" placeholder="ej: administrador" required className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={loginForm.user} onChange={e => setLoginForm({...loginForm, user: e.target.value})} />
+             </div>
+             <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Contraseña</label>
+                <input type="password" placeholder="••••••••" required className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} />
+             </div>
+             {loginError && <p className="text-red-400 text-[10px] font-bold uppercase text-center">{loginError}</p>}
+             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-xl transition-all mt-4 leading-none">Acceso Auditado</button>
           </form>
+          <div className="mt-8 pt-8 border-t border-slate-800 flex justify-center space-x-6 opacity-20">
+             <Shield size={16}/> <Recycle size={16}/> <Zap size={16}/>
+          </div>
         </div>
       </div>
     );
   }
 
   // Extracción del icono de rol para evitar error de sintaxis JSX
-  const CurrentRoleIcon = ROLES[currentUser.role].icon;
+  const CurrentRoleIcon = currentUser ? ROLES[currentUser.role].icon : Shield;
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
@@ -314,19 +323,19 @@ export default function App() {
       <main className="flex-1 overflow-y-auto p-12 custom-scrollbar text-left no-print">
         {view === 'dashboard' && (
           <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-500 text-left">
-            <header className="flex justify-between items-end">
-                <div className="text-left">
-                   <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none italic">Estado del Arte</h2>
-                   <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Monitoreo de Celdas y Cumplimiento Normativo</p>
+            <header className="flex justify-between items-end leading-none">
+                <div className="text-left leading-none">
+                   <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none italic">Monitor de Parque</h2>
+                   <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Celdas de Litio y Cumplimiento Normativo</p>
                 </div>
                 {!isClient && isAuthUser && (
-                   <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">Inyectar Activo</button>
+                   <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">Registrar Activo</button>
                 )}
             </header>
 
             {/* Monitor Circular SoH */}
             <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 shadow-2xl text-left">
-               <h3 className="font-black text-xl mb-10 uppercase flex items-center italic tracking-tighter leading-none"><BatteryCharging className="mr-3 text-emerald-400" /> Monitor de Revalorización de Litio</h3>
+               <h3 className="font-black text-xl mb-10 uppercase flex items-center italic tracking-tighter leading-none"><BatteryCharging className="mr-3 text-emerald-400" /> Trazabilidad de Salud de Baterías</h3>
                <div className="space-y-12">
                   {vehicles.map(v => {
                     const dest = getCircularDestination(v.currentSoH);
@@ -366,16 +375,16 @@ export default function App() {
                     <div className="p-3 bg-blue-600/20 rounded-2xl"><Zap className="text-blue-400" size={24}/></div>
                     <p className="text-3xl font-black">250W</p>
                   </div>
-                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Normalización Ley Retrofit</h3>
-                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">Vehículos auditados y certificados bajo el marco legal de ciclos livianos en Chile.</p>
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Cumplimiento Ley Retrofit</h3>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">Activos auditados operando bajo el límite legal de potencia para ciclos livianos.</p>
                </div>
                <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-left">
                   <div className="flex justify-between items-start mb-6 text-left leading-none">
                     <div className="p-3 bg-red-600/20 rounded-2xl"><Recycle className="text-red-400" size={24}/></div>
                     <p className="text-3xl font-black">Ley REP</p>
                   </div>
-                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Trazabilidad de Residuos</h3>
-                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">Registro inmutable de disposición final y reciclaje químico de celdas de litio.</p>
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Revalorización de Residuos</h3>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">Trazabilidad inmutable para la gestión responsable de baterías al final de su vida útil.</p>
                </div>
             </div>
           </div>
@@ -386,7 +395,7 @@ export default function App() {
              <div className="space-y-6 text-left">
                 <div className="flex justify-between items-center mb-10 text-left leading-none">
                    <h2 className="text-3xl font-black uppercase tracking-tighter italic leading-none">Consola de Peritaje</h2>
-                   {!isClient && (isTech || isAuthUser) && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">+ Peritaje Dual</button>}
+                   {!isClient && (isTech || isAuthUser) && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">+ Nuevo Ticket</button>}
                 </div>
                 <div className="space-y-4 overflow-y-auto max-h-[75vh] pr-4 custom-scrollbar text-left">
                    {orders.map(o => {
@@ -397,19 +406,19 @@ export default function App() {
                              <div className="text-left leading-none">
                                 <span className="text-[10px] font-black text-slate-600 uppercase leading-none">{o.id}</span>
                                 <h4 className="font-black text-xl leading-none mt-2 uppercase tracking-tight">{v?.model}</h4>
-                                <p className="text-[9px] font-bold text-blue-400 mt-2 uppercase leading-none">Perfil: {o.workType || 'Híbrido'}</p>
+                                <p className="text-[9px] font-bold text-blue-400 mt-2 uppercase leading-none">Perfil Técnico: {o.workType || 'Híbrido'}</p>
                              </div>
                              <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${o.status === 'Cerrada' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-blue-500 text-blue-400'}`}>{o.status}</span>
                           </div>
                           {o.status === 'Cerrada' && (
-                            <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-slate-800/50">
-                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('CERT', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-blue-400 uppercase hover:text-white transition-colors">
+                            <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-slate-800/50 leading-none">
+                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('CERT', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-blue-400 uppercase hover:text-white transition-colors leading-none">
                                  <Printer size={12}/> <span>Certificado QR</span>
                                </button>
-                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('BATTERY', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-emerald-500 uppercase hover:text-white transition-colors">
+                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('BATTERY', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-emerald-500 uppercase hover:text-white transition-colors leading-none">
                                  <Battery size={12}/> <span>Hoja Vida Litio</span>
                                </button>
-                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('WORK', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-slate-400 uppercase hover:text-white transition-colors">
+                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('WORK', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-slate-400 uppercase hover:text-white transition-colors leading-none">
                                  <FileCheck size={12}/> <span>Comprobante</span>
                                </button>
                             </div>
@@ -421,46 +430,50 @@ export default function App() {
              </div>
 
              <div className="bg-slate-900 border border-slate-800 rounded-[4rem] p-12 sticky top-0 h-fit shadow-2xl min-h-[600px] flex flex-col text-left leading-none">
-                {selectedOrderId && SelectedOrderData ? (
+                {selectedOrderId && orders.find(o => o.id === selectedOrderId) ? (
                   <div className="space-y-10 animate-in slide-in-from-right-8 duration-500 text-left leading-none">
                      <header className="flex justify-between items-start border-b border-slate-800 pb-10 text-left leading-none">
                         <div className="text-left leading-none">
                            <h3 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedOrderId}</h3>
-                           <p className="text-slate-500 text-[10px] font-black mt-3 italic uppercase leading-none">Normalización y Trazabilidad Ley REP</p>
+                           <p className="text-slate-500 text-[10px] font-black mt-3 italic uppercase leading-none">Auditoría de Componentes Críticos</p>
                         </div>
                      </header>
 
-                     {SelectedOrderData.status === 'Asignada' && (isTech || isAuthUser) && (
+                     {orders.find(o => o.id === selectedOrderId)?.status === 'Asignada' && (isTech || isAuthUser) && (
                        <form onSubmit={(e) => {
                          e.preventDefault();
                          const fd = new FormData(e.currentTarget);
-                         const pout = calculatePout(parseFloat(fd.get('v')), parseFloat(fd.get('i')), parseFloat(fd.get('r')));
+                         const v_val = parseFloat(fd.get('v')) || 0;
+                         const i_val = parseFloat(fd.get('i')) || 0;
+                         const r_val = parseFloat(fd.get('r')) || 0;
+                         const pout = calculatePout(v_val, i_val, r_val);
+                         const cost = parseFloat(fd.get('cost')) || 0;
                          
-                         setVehicles(prev => prev.map(v => v.id === SelectedOrderData.vehicleId ? {
+                         setVehicles(prev => prev.map(v => v.id === orders.find(ord => ord.id === selectedOrderId).vehicleId ? {
                            ...v,
                            poutActual: parseFloat(pout),
                            currentSoH: parseInt(fd.get('soh')),
                            legalCompliance: parseFloat(pout) <= 250,
                            batteryTrace: {
-                              stage: traceForm.stage,
-                              document: traceForm.document,
-                              gestor: traceForm.gestor,
-                              folio: fd.get('folio'),
-                              date: fd.get('traceDate')
+                              stage: traceState.stage,
+                              document: traceState.document,
+                              gestor: traceState.gestor,
+                              folio: fd.get('folio') || 'N/A',
+                              date: fd.get('traceDate') || new Date().toLocaleDateString()
                            }
                          } : v));
 
                          handleUpdateOT(selectedOrderId, { 
                            workDetail: fd.get('detail'), 
-                           cost: parseFloat(fd.get('cost')),
+                           cost: cost,
                            workType: fd.get('workType'),
-                           status: (parseFloat(fd.get('cost')) > UMBRAL_AUTORIZACION) ? 'Pendiente Autorización' : 'Cerrada' 
-                         }, `Peritaje Cerrado. Pout: ${pout}W. Trazabilidad registrada.`);
+                           status: (cost > UMBRAL_AUTORIZACION) ? 'Pendiente Autorización' : 'Cerrada' 
+                         }, `Peritaje finalizado como ${fd.get('workType')}.`);
                        }} className="space-y-8 text-left leading-none">
                           
                           <div className="grid grid-cols-2 gap-4 text-left leading-none">
                              <div className="space-y-1 text-left leading-none">
-                                <label className="text-[10px] font-black text-slate-600 uppercase ml-2 leading-none">Perfil de Trabajo</label>
+                                <label className="text-[10px] font-black text-slate-600 uppercase ml-2 leading-none">Especialidad Perito</label>
                                 <select name="workType" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-white outline-none appearance-none shadow-inner">
                                    <option value="Eléctrico">Eléctrico</option>
                                    <option value="Mecánico">Mecánico</option>
@@ -474,84 +487,84 @@ export default function App() {
                           </div>
 
                           <div className="p-8 bg-slate-950/50 border border-slate-800 rounded-[2.5rem] space-y-6 text-left leading-none">
-                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] flex items-center leading-none italic"><Battery size={14} className="mr-2"/> Trazabilidad de Batería</p>
+                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] flex items-center leading-none italic"><Battery size={14} className="mr-2"/> Trazabilidad Ley REP</p>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left leading-none">
-                                <div className="space-y-1 leading-none">
-                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Etapa (Selector A)</label>
-                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceForm.stage} onChange={e => setTraceForm({...traceForm, stage: e.target.value})}>
+                                <div className="space-y-1 leading-none text-left">
+                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Selector A: Etapa</label>
+                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceState.stage} onChange={e => setTraceState({...traceState, stage: e.target.value})}>
                                       <option>Diagnóstico</option><option>Clasificación</option><option>Recuperación</option><option>Certificación</option>
                                    </select>
                                 </div>
-                                <div className="space-y-1 leading-none">
-                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Acción (Selector B)</label>
-                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceForm.document} onChange={e => setTraceForm({...traceForm, document: e.target.value})}>
+                                <div className="space-y-1 leading-none text-left">
+                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Selector B: Acción</label>
+                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceState.document} onChange={e => setTraceState({...traceState, document: e.target.value})}>
                                       <option>Certificado de Disposición</option><option>Certificado de Reciclaje</option><option>Acta de BESS</option>
                                    </select>
                                 </div>
-                                <div className="space-y-1 leading-none">
-                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Gestor (Selector C)</label>
-                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceForm.gestor} onChange={e => setTraceForm({...traceForm, gestor: e.target.value})}>
+                                <div className="space-y-1 leading-none text-left">
+                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Selector C: Gestor</label>
+                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceState.gestor} onChange={e => setTraceState({...traceState, gestor: e.target.value})}>
                                       <option>REP Chile</option><option>Prolitio</option><option>Depura Rec.</option><option>Litio Electric</option><option>Otro</option>
                                    </select>
                                 </div>
                              </div>
 
-                             {traceForm.document === 'Certificado de Reciclaje' && (
+                             {(traceState.document === 'Certificado de Reciclaje' || traceState.document === 'Certificado de Disposición') && (
                                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800 animate-in slide-in-from-top-2 duration-300 text-left">
                                   <div className="space-y-1 text-left leading-none">
                                      <label className="text-[8px] font-black text-red-500 uppercase ml-2 leading-none">Folio SIDREP</label>
-                                     <input name="folio" placeholder="SID-XXXX" className="w-full bg-slate-900 border border-red-500/20 rounded-xl px-4 py-3 text-[10px] text-white outline-none" />
+                                     <input name="folio" required placeholder="SID-XXXX" className="w-full bg-slate-900 border border-red-500/20 rounded-xl px-4 py-3 text-[10px] text-white outline-none" />
                                   </div>
                                   <div className="space-y-1 text-left leading-none">
                                      <label className="text-[8px] font-black text-red-500 uppercase ml-2 leading-none">Fecha Emisión</label>
-                                     <input name="traceDate" type="date" className="w-full bg-slate-900 border border-red-500/20 rounded-xl px-4 py-3 text-[10px] text-white outline-none" />
+                                     <input name="traceDate" type="date" required className="w-full bg-slate-900 border border-red-500/20 rounded-xl px-4 py-3 text-[10px] text-white outline-none" />
                                   </div>
                                </div>
                              )}
                           </div>
 
                           <div className="p-8 bg-slate-950/50 border border-slate-800 rounded-[2.5rem] space-y-6 text-left leading-none">
-                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] flex items-center leading-none italic"><Cpu size={14} className="mr-2"/> Motor de Reglas (250W)</p>
+                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] flex items-center leading-none italic"><Cpu size={14} className="mr-2"/> Motor de Reglas (Compliance)</p>
                              <div className="grid grid-cols-3 gap-4 text-left leading-none">
-                                <input name="v" placeholder="Voltaje (V)" required type="number" step="0.1" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
-                                <input name="i" placeholder="Amperaje (I)" required type="number" step="0.1" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
-                                <input name="r" placeholder="Resistencia (Ω)" required type="number" step="0.001" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
+                                <input name="v" placeholder="Volt (V)" required type="number" step="0.1" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
+                                <input name="i" placeholder="Amp (I)" required type="number" step="0.1" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
+                                <input name="r" placeholder="Res (Ω)" required type="number" step="0.001" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
                              </div>
                           </div>
 
                           <div className="space-y-6 text-left leading-none">
-                             <textarea name="detail" required rows="3" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-10 text-sm outline-none text-white focus:ring-2 focus:ring-blue-500" placeholder="Descripción técnica detallada..."></textarea>
+                             <textarea name="detail" required rows="3" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-10 text-sm outline-none text-white focus:ring-2 focus:ring-blue-500" placeholder="Análisis pericial detallado..."></textarea>
                              <div className="grid grid-cols-2 gap-6 items-end text-left leading-none">
                                 <div className="space-y-2 text-left leading-none">
                                    <label className="text-[9px] font-black text-slate-600 uppercase ml-4 tracking-widest leading-none">Valorización ($)</label>
                                    <input name="cost" required type="number" defaultValue="0" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-8 py-5 text-xl font-black text-white shadow-inner outline-none focus:ring-2 focus:ring-blue-500" />
                                 </div>
-                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-3xl font-black text-[11px] uppercase text-white shadow-xl transition-all h-[68px] tracking-[0.2em] leading-none">CERRAR Y CERTIFICAR</button>
+                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-3xl font-black text-[11px] uppercase text-white shadow-xl transition-all h-[68px] tracking-[0.2em] leading-none">GENERAR AUDITORÍA</button>
                              </div>
                           </div>
                        </form>
                      )}
 
-                     {SelectedOrderData.status === 'Pendiente Autorización' && isAuthUser && (
+                     {orders.find(o => o.id === selectedOrderId)?.status === 'Pendiente Autorización' && isAuthUser && (
                        <div className="pt-10 border-t border-slate-800 space-y-8 animate-in fade-in duration-700 text-center leading-none">
                           <div className="bg-purple-600/10 border border-purple-500/30 p-10 rounded-[3rem] text-center shadow-inner leading-none">
                              <ShieldCheck size={48} className="text-purple-400 mx-auto mb-6 animate-pulse" />
-                             <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-purple-400 mb-4 leading-none">Autorización de Presupuesto Perito</h4>
-                             <p className="text-xs text-slate-400 italic px-8 mb-10 leading-relaxed text-center">Intervención por ${SelectedOrderData.cost.toLocaleString()} requiere validación jerárquica para habilitar certificados.</p>
+                             <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-purple-400 mb-4 leading-none">Autorización Requerida</h4>
+                             <p className="text-xs text-slate-400 italic px-8 mb-10 leading-relaxed text-center">El peritaje excede los $80.000. Requiere su firma para emitir certificados legales.</p>
                              <button onClick={() => handleUpdateOT(selectedOrderId, { status: 'Cerrada', isAuthorized: true }, 'Certificación autorizada por supervisión.')} className="w-full bg-purple-600 hover:bg-purple-500 py-6 rounded-[2rem] font-black text-xs uppercase text-white shadow-xl flex items-center justify-center transition-all tracking-[0.2em] leading-none">
-                                <ThumbsUp size={20} className="mr-3"/> VALIDAR Y FIRMAR (OK)
+                                <ThumbsUp size={20} className="mr-3"/> FIRMAR Y AUTORIZAR (OK)
                              </button>
                           </div>
                        </div>
                      )}
 
                      <div className="pt-12 border-t border-slate-800/50 text-left">
-                        <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-10 flex items-center italic font-bold tracking-widest leading-none text-left"><History size={16} className="mr-3" /> Bitácora Digital Inmutable</h4>
+                        <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-10 flex items-center italic font-bold tracking-widest leading-none text-left"><History size={16} className="mr-3" /> Bitácora Inmutable</h4>
                         <div className="space-y-8 relative text-left">
-                           {(SelectedOrderData.logs || []).map((log, idx) => (
-                             <div key={idx} className="flex gap-8 relative text-left">
+                           {(orders.find(o => o.id === selectedOrderId)?.logs || []).map((log, idx) => (
+                             <div key={idx} className="flex gap-8 relative text-left leading-none">
                                 <div className={`w-4 h-4 rounded-full mt-1.5 shrink-0 z-10 border-[4px] border-slate-950 ${idx === 0 ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]' : 'bg-slate-700 opacity-50'}`}></div>
-                                <div className="flex-1 text-left">
+                                <div className="flex-1 text-left leading-none">
                                    <p className="text-xs font-black text-slate-200 uppercase tracking-widest leading-none mb-2 text-left">{log.action}</p>
                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic opacity-80 leading-none text-left">{log.user} — {log.date}</p>
                                 </div>
@@ -574,8 +587,8 @@ export default function App() {
           <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500 text-left leading-none">
              <header className="flex justify-between items-end leading-none">
                 <div className="text-left leading-none">
-                   <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none italic">Gestión de Clientes</h2>
-                   <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Propiedad Legal de Flota y Activos</p>
+                   <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none italic">Mantenedor de Clientes</h2>
+                   <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Gestión de Propiedad de Flota</p>
                 </div>
                 <button className="bg-emerald-600 hover:bg-emerald-500 px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">+ Nuevo Titular</button>
              </header>
@@ -600,7 +613,7 @@ export default function App() {
                           <div key={v.id} className="flex items-center justify-between p-6 bg-slate-950/50 rounded-[2rem] border border-slate-800 group hover:border-blue-500/30 transition-all text-left leading-none">
                              <div className="text-left leading-none">
                                 <p className="text-sm font-black text-white uppercase leading-none">{v.model}</p>
-                                <p className="text-[9px] font-bold text-blue-500 mt-2 uppercase tracking-widest leading-none">CHASIS: {v.id}</p>
+                                <p className="text-[9px] font-bold text-blue-500 mt-2 uppercase tracking-widest leading-none">SERIE: {v.id}</p>
                              </div>
                              <div className="flex items-center space-x-6 text-left leading-none">
                                 <div className="text-right leading-none">
@@ -627,7 +640,7 @@ export default function App() {
       {isTransferModalOpen && (
         <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8">
            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[4rem] p-16 animate-in zoom-in-95 duration-500 shadow-2xl text-center leading-none">
-              <h3 className="text-3xl font-black mb-8 text-white uppercase tracking-tighter italic text-center leading-none">Traspaso de Activo</h3>
+              <h3 className="text-3xl font-black mb-8 text-white uppercase tracking-tighter italic text-center leading-none">Traspaso Legal</h3>
               <div className="space-y-4 mb-10 text-left leading-none">
                  {customers.map(c => (
                    <button key={c.id} onClick={() => {
@@ -661,4 +674,12 @@ export default function App() {
       `}</style>
     </div>
   );
+
+  function handleUpdateOT(id, updates, logAction) {
+    setOrders(prev => prev.map(o => o.id === id ? {
+      ...o, ...updates, 
+      logs: [...(o.logs || []), { action: logAction, user: currentUser.name, date: new Date().toLocaleString() }]
+    } : o));
+    if (updates.status === 'Cerrada') setSelectedOrderId(null);
+  }
 }
