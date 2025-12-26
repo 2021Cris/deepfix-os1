@@ -8,18 +8,31 @@
 
 body {
   margin: 0;
-  background-color: #020617;
-  color: #f8fafc;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-smoothing: grayscale;
+  background-color: #020617;
 }
 
+/* Scrollbar personalizada para la consola DeepFix */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #1e293b;
   border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }
