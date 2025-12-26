@@ -1,138 +1,138 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  LayoutDashboard, ClipboardList, Bike, BarChart2, PlusCircle, User, 
-  Clock, Camera, CheckCircle2, AlertCircle, UserPlus, FileEdit,
-  DollarSign, Search, ChevronRight, X, History, Calendar, Filter, 
-  Download, Activity, Zap, AlertTriangle, Settings2, ShieldCheck, 
-  Briefcase, Wrench, ThumbsUp, Paperclip, File, Trash2, UploadCloud,
-  Sparkles, Loader2, LogOut, Lock, Battery, BatteryCharging, Gauge,
-  Cpu, ZapOff, Database, ShieldAlert, Save, RefreshCw
+  LayoutDashboard, 
+  ClipboardList, 
+  Bike, 
+  BarChart2, 
+  PlusCircle, 
+  User, 
+  Clock, 
+  Camera, 
+  CheckCircle2, 
+  AlertCircle, 
+  UserPlus, 
+  FileEdit,
+  DollarSign,
+  Search, 
+  ChevronRight, 
+  X, 
+  History, 
+  Calendar, 
+  Filter, 
+  Download, 
+  Activity, 
+  Zap, 
+  AlertTriangle, 
+  Settings2, 
+  ShieldCheck, 
+  Briefcase, 
+  Wrench, 
+  ThumbsUp, 
+  Paperclip, 
+  File, 
+  Trash2, 
+  UploadCloud 
 } from 'lucide-react';
 
-// --- Configuración de IA ---
-const apiKey = ""; 
-
+// --- Roles de Usuario ---
 const ROLES = {
   AUTORIZADOR: { id: 'AUTORIZADOR', label: 'Autorizador', icon: ShieldCheck, color: 'text-purple-400' },
   ASIGNADOR: { id: 'ASIGNADOR', label: 'Asignador', icon: Briefcase, color: 'text-orange-400' },
-  EJECUTOR: { id: 'EJECUTOR', label: 'Técnico Ejecutor', icon: Wrench, color: 'text-blue-400' }
+  EJECUTOR: { id: 'EJECUTOR', label: 'Ejecutor', icon: Wrench, color: 'text-blue-400' }
 };
 
-const CREDENTIALS = {
-  'autorizador': { password: 'autorizador123', role: 'AUTORIZADOR' },
-  'asignador': { password: 'asignador123', role: 'ASIGNADOR' },
-  'tecnico': { password: 'tecnico123', role: 'EJECUTOR' }
-};
+const APPROVAL_THRESHOLD = 80000;
 
-const DEFAULT_UMBRAL = 80000;
-
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginForm, setLoginForm] = useState({ user: '', password: '' });
-  const [loginError, setLoginError] = useState('');
-  const [currentUser, setCurrentUser] = useState(null);
-  
+const App = () => {
+  // --- Estados de la Aplicación ---
   const [view, setView] = useState('dashboard');
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [userRole, setUserRole] = useState(ROLES.AUTORIZADOR.id);
   const [isNewVehicleModalOpen, setIsNewVehicleModalOpen] = useState(false);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiError, setAiError] = useState(null);
-  const [umbralGasto, setUmbralGasto] = useState(DEFAULT_UMBRAL);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [expenseThreshold, setExpenseThreshold] = useState(200000);
 
-  // --- Base de Datos de Activos ---
+  const [reportFilters, setReportFilters] = useState({
+    startDate: '',
+    endDate: '',
+    tech: 'Todos',
+    type: 'Todos'
+  });
+
   const [vehicles, setVehicles] = useState([
-    { 
-      id: 'V-LEGACY-01', 
-      type: 'Bicicleta Eléctrica', 
-      model: 'Urban-X (Legacy)', 
-      plate: 'AA-11-BB',
-      motorSpecs: '250W Bafang',
-      batterySpecs: '36V 10Ah',
-      controllerSpecs: '15A Standard',
-      batterySOH: 72,
-      cycles: 890,
-      status: 'Revision Requerida'
-    },
-    { 
-      id: 'V-LEGACY-02', 
-      type: 'Tricicleta Eléctrica', 
-      model: 'CargoMaster 2000', 
-      plate: 'TR-99-CC',
-      motorSpecs: '1000W Heavy Duty',
-      batterySpecs: '60V 30Ah',
-      controllerSpecs: '45A Vector',
-      batterySOH: 85,
-      cycles: 320,
-      status: 'Operativo'
-    }
+    { id: 'V1', type: 'Bicicleta Eléctrica', model: 'EcoRide 500', plate: 'BE-2024-01' },
+    { id: 'V2', type: 'Tricicleta Eléctrica', model: 'CargoPlus 3000', plate: 'TE-2024-99' },
+    { id: 'V3', type: 'Bicicleta Eléctrica', model: 'Urban S1', plate: 'BE-2024-05' },
   ]);
 
   const [orders, setOrders] = useState([
     {
-      id: 'OT-8800',
-      vehicleId: 'V-LEGACY-01',
-      sc25Code: 'SC25-HISTORICO',
-      status: 'Asignada',
-      category: 'Revisión Parque',
-      problemDescription: 'Pérdida de potencia en pendiente. Revisión de estado del arte necesaria.',
-      assignedTech: 'Técnico Senior',
-      workDetail: '',
-      cost: 0,
+      id: 'OT-1001',
+      vehicleId: 'V1',
+      status: 'Cerrada',
+      category: 'Correctivo',
+      problemDescription: 'Falla en el sistema de frenado regenerativo.',
+      assignedTech: 'Juan Técnico',
+      workDetail: 'Se reemplazaron las pastillas de freno y se recalibró el sensor de torque.',
+      cost: 45000,
+      isAuthorized: true,
+      attachments: [{ id: 1, name: 'evidencia_frenos.jpg', size: '1.2MB' }],
+      dateAction: '2024-03-10',
+      dateClosed: '2024-03-12',
+      logs: [
+        { action: 'Apertura del caso', user: 'Asignador_01', date: '2024-03-10 09:15' },
+        { action: 'Asignación de técnico', user: 'Asignador_01', date: '2024-03-10 10:30' },
+        { action: 'Cierre de trabajo', user: 'Juan Técnico', date: '2024-03-12 14:00' }
+      ]
+    },
+    {
+      id: 'OT-1005',
+      vehicleId: 'V3',
+      status: 'Pendiente Autorización',
+      category: 'Correctivo',
+      problemDescription: 'Cambio de motor central por falla crítica.',
+      assignedTech: 'Roberto Tech',
+      workDetail: 'Se requiere cambio completo de unidad motriz.',
+      cost: 125000,
       isAuthorized: false,
-      attachments: [],
-      dateAction: '2024-11-05',
-      logs: [{ action: 'Migración de BBDD Antigua', user: 'SYSTEM', date: '2024-11-05' }]
+      attachments: [{ id: 2, name: 'presupuesto_motor.pdf', size: '450KB' }],
+      dateAction: '2024-03-22',
+      dateClosed: null,
+      logs: [
+        { action: 'Apertura del caso', user: 'Asignador_01', date: '2024-03-21 10:00' },
+        { action: 'Asignación de técnico', user: 'Asignador_01', date: '2024-03-21 11:00' },
+        { action: 'Solicitud de autorización por costo', user: 'Roberto Tech', date: '2024-03-22 09:00' }
+      ]
     }
   ]);
 
-  const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId), [orders, selectedOrderId]);
+  // --- Lógica de Permisos ---
+  const canModifyThreshold = userRole === ROLES.AUTORIZADOR.id;
+  const canAddVehicle = userRole === ROLES.AUTORIZADOR.id || userRole === ROLES.ASIGNADOR.id;
+  const canOpenOrder = userRole === ROLES.AUTORIZADOR.id || userRole === ROLES.ASIGNADOR.id;
+  const canAssignOrder = userRole === ROLES.ASIGNADOR.id || userRole === ROLES.AUTORIZADOR.id;
+  const canExecuteOrder = userRole === ROLES.EJECUTOR.id || userRole === ROLES.AUTORIZADOR.id;
+  const canAuthorize = userRole === ROLES.AUTORIZADOR.id;
 
-  // --- Gestión de Autenticación ---
-  const handleLogin = (e) => {
-    e.preventDefault();
-    const cred = CREDENTIALS[loginForm.user.toLowerCase()];
-    if (cred && cred.password === loginForm.password) {
-      setIsLoggedIn(true);
-      setCurrentUser({ name: loginForm.user, role: cred.role });
-      setLoginError('');
-      setView('dashboard');
-    } else {
-      setLoginError('Usuario o contraseña inválidos');
-    }
-  };
+  // --- Cálculos de KPIs Dinámicos ---
+  const stats = useMemo(() => {
+    const activeMaintenance = orders.filter(o => o.status !== 'Cerrada').length;
+    const availability = vehicles.length > 0 
+      ? (((vehicles.length - activeMaintenance) / vehicles.length) * 100).toFixed(0)
+      : 0;
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setLoginForm({ user: '', password: '' });
-    setCurrentUser(null);
-    setSelectedOrderId(null);
-  };
+    return { availability };
+  }, [orders, vehicles]);
 
-  const userRole = currentUser?.role;
-  const isAuth = userRole === 'AUTORIZADOR';
-  const isAsign = userRole === 'ASIGNADOR';
-  const isTech = userRole === 'EJECUTOR';
-
-  // --- Handlers de Datos ---
-  const handleUpdateVehicleSpecs = (vehicleId, newSpecs) => {
-    setVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, ...newSpecs, status: 'Auditado' } : v));
-  };
-
+  // --- Handlers ---
   const handleAddVehicle = (e) => {
     e.preventDefault();
-    const data = new FormData(e.target);
+    const formData = new FormData(e.target);
     const newV = { 
-      id: `V-NEW-${Date.now()}`, 
-      type: data.get('type'), 
-      model: data.get('model'), 
-      plate: data.get('plate').toUpperCase(),
-      motorSpecs: data.get('motorSpecs'),
-      batterySpecs: data.get('batterySpecs'),
-      controllerSpecs: data.get('controllerSpecs'),
-      batterySOH: 100,
-      cycles: 0,
-      status: 'Nuevo Ingreso'
+      id: `V${Date.now()}`, 
+      type: formData.get('type') || 'Bicicleta Eléctrica', 
+      model: formData.get('model') || 'Modelo Genérico', 
+      plate: formData.get('plate') || 'SIN-PATENTE' 
     };
     setVehicles([...vehicles, newV]);
     setIsNewVehicleModalOpen(false);
@@ -140,360 +140,261 @@ export default function App() {
 
   const handleCreateOrder = (e) => {
     e.preventDefault();
-    const data = new FormData(e.target);
+    const formData = new FormData(e.target);
     const newO = {
-      id: `OT-${Math.floor(1000 + Math.random() * 8999)}`,
-      vehicleId: data.get('vehicleId'),
-      sc25Code: data.get('sc25'),
+      id: `OT-${Math.floor(1000 + Math.random() * 9000)}`,
+      vehicleId: formData.get('vehicleId'),
       status: 'Abierta',
-      category: data.get('category'),
-      problemDescription: data.get('problemDescription'),
+      category: formData.get('category') || 'Correctivo',
+      problemDescription: formData.get('problemDescription') || 'Sin descripción',
       assignedTech: null,
+      workDetail: '',
       cost: 0,
       isAuthorized: false,
       attachments: [],
       dateAction: new Date().toISOString().split('T')[0],
-      logs: [{ action: `Apertura (Ref: ${data.get('sc25')})`, user: currentUser.name, date: new Date().toLocaleString() }]
+      logs: [{ action: 'Apertura del caso', user: `${userRole}_01`, date: new Date().toLocaleString() }]
     };
     setOrders([newO, ...orders]);
     setIsNewOrderModalOpen(false);
-    setView('orders');
   };
 
-  const handleUpdateOT = (id, updates, logAction, shouldClose = false) => {
-    setOrders(prev => prev.map(o => o.id === id ? {
-      ...o, ...updates, 
-      logs: [...(o.logs || []), { action: logAction, user: currentUser.name, date: new Date().toLocaleString() }]
-    } : o));
-    if (shouldClose) setSelectedOrderId(null);
-  };
-
-  const generateAiAnalysis = async (problem, currentDetail) => {
-    if (!apiKey) {
-      setAiError("API Key no configurada.");
-      return;
-    }
-    setIsAnalyzing(true);
-    setAiError(null);
-    try {
-      const prompt = `Analiza este caso técnico de electromovilidad. Problema: "${problem}". Observaciones: "${currentDetail}". Genera un diagnóstico profesional.`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) {
-        const textarea = document.getElementById('workDetailInput');
-        if (textarea) textarea.value = text.trim();
+  const updateOrderStep = (id, updates, logAction) => {
+    setOrders(orders.map(o => {
+      if (o.id === id) {
+        return {
+          ...o,
+          ...updates,
+          logs: [...(o.logs || []), { action: logAction, user: `${userRole}_01`, date: new Date().toLocaleString() }]
+        };
       }
-    } catch (err) {
-      setAiError("Error en IA.");
-    } finally {
-      setIsAnalyzing(false);
-    }
+      return o;
+    }));
+    setSelectedOrder(null);
   };
 
-  const stats = useMemo(() => {
-    const closed = orders.filter(o => o.status === 'Cerrada');
-    const spent = closed.reduce((acc, curr) => acc + (curr.cost || 0), 0);
-    const avgSOH = vehicles.length > 0 ? vehicles.reduce((acc, v) => acc + v.batterySOH, 0) / vehicles.length : 0;
-    const maintenanceCount = orders.filter(o => o.status !== 'Cerrada').length;
-    return { 
-      availability: vehicles.length > 0 ? (((vehicles.length - maintenanceCount) / vehicles.length) * 100).toFixed(0) : 0,
-      spent, 
-      avgSOH: avgSOH.toFixed(1), 
-      pending: orders.filter(o => o.status === 'Pendiente Autorización').length 
-    };
-  }, [orders, vehicles]);
+  const handleFileUpload = (id, fileName) => {
+    const newFile = { id: Date.now(), name: fileName, size: '2.4MB' };
+    setOrders(orders.map(o => {
+      if (o.id === id) {
+        return {
+          ...o,
+          attachments: [...(o.attachments || []), newFile],
+          logs: [...(o.logs || []), { action: `Carga de archivo: ${fileName}`, user: `${userRole}_01`, date: new Date().toLocaleString() }]
+        };
+      }
+      return o;
+    }));
+  };
 
-  // --- Vistas ---
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 selection:bg-blue-500/30">
-        <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-12 shadow-2xl animate-in zoom-in-95 duration-500 text-center">
-          <div className="flex flex-col items-center mb-10">
-            <div className="bg-blue-600 p-4 rounded-3xl shadow-xl mb-6 shadow-blue-900/40">
-              <ShieldAlert className="text-white" size={32} />
-            </div>
-            <h1 className="text-3xl font-black text-white uppercase tracking-tighter italic">deepfix<span className="text-blue-500 not-italic">os1</span></h1>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">Seguridad Operativa de Activos</p>
-          </div>
-          
-          <form onSubmit={handleLogin} className="space-y-5 text-left">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Usuario</label>
-              <input 
-                type="text" required
-                value={loginForm.user}
-                onChange={(e) => setLoginForm({...loginForm, user: e.target.value})}
-                placeholder="autorizador / tecnico"
-                className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Contraseña</label>
-              <input 
-                type="password" required
-                value={loginForm.password}
-                onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                placeholder="••••••••"
-                className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              />
-            </div>
-            {loginError && <p className="text-red-400 text-[10px] font-bold uppercase text-center animate-pulse">{loginError}</p>}
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-xl shadow-blue-900/20 transition-all mt-4">
-              Ingresar al Sistema
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  const handleAuthorize = (id) => {
+    setOrders(orders.map(o => {
+      if (o.id === id) {
+        return {
+          ...o,
+          status: 'Asignada',
+          isAuthorized: true,
+          logs: [...(o.logs || []), { action: 'Autorización de costo excedente concedida', user: `${userRole}_01`, date: new Date().toLocaleString() }]
+        };
+      }
+      return o;
+    }));
+    setSelectedOrder(null);
+  };
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans">
       {/* Sidebar */}
-      <aside className="w-72 border-r border-slate-800 bg-slate-900/40 p-8 flex flex-col">
-        <div className="flex items-center space-x-4 mb-12 px-2">
+      <aside className="w-72 border-r border-slate-800 bg-slate-900/40 p-10 flex flex-col">
+        <div className="flex items-center space-x-4 mb-12">
           <div className="bg-blue-600 p-2.5 rounded-2xl shadow-xl shadow-blue-900/40">
             <Settings2 className="text-white" size={24} />
           </div>
-          <h1 className="text-xl font-black tracking-tighter uppercase text-left leading-none italic">deepfix<br/><span className="text-[10px] text-blue-500 font-bold tracking-[0.3em] not-italic">os1 - activos</span></h1>
+          <h1 className="text-xl font-black text-white leading-none tracking-tighter">MANTENCIÓN<br/><span className="text-[10px] font-bold text-blue-500 tracking-[0.3em]">ACTIVOS</span></h1>
         </div>
         
-        <nav className="space-y-3 flex-1 text-left">
-          <button onClick={() => setView('dashboard')} className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${view === 'dashboard' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>
-            <LayoutDashboard size={20} /> <span className="text-sm font-bold uppercase tracking-widest text-left">Dashboard</span>
+        <nav className="space-y-3 flex-1">
+          <button onClick={() => setView('dashboard')} className={`w-full text-left flex items-center space-x-4 px-6 py-4 rounded-[1.5rem] transition-all ${view === 'dashboard' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800'}`}>
+            <LayoutDashboard size={20} /> <span className="text-sm font-bold uppercase tracking-widest">Dashboard</span>
           </button>
-          <button onClick={() => setView('orders')} className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${view === 'orders' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>
-            <ClipboardList size={20} /> <span className="text-sm font-bold uppercase tracking-widest text-left">Órdenes</span>
+          <button onClick={() => setView('orders')} className={`w-full text-left flex items-center space-x-4 px-6 py-4 rounded-[1.5rem] transition-all ${view === 'orders' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800'}`}>
+            <ClipboardList size={20} /> <span className="text-sm font-bold uppercase tracking-widest">Órdenes Trabajo</span>
           </button>
-          {isAuth && (
-            <button onClick={() => setView('config')} className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${view === 'config' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>
-              <ShieldCheck size={20} /> <span className="text-sm font-bold uppercase tracking-widest text-left">Configuración</span>
-            </button>
-          )}
         </nav>
 
-        <div className="mt-auto space-y-4 pt-10 border-t border-slate-800 text-left">
-          <div className="flex items-center space-x-3 p-4 bg-slate-900 rounded-2xl border border-slate-800">
-            <div className="bg-slate-800 p-2 rounded-xl text-center">
-               {isAuth ? <ShieldCheck size={18} className="text-purple-400" /> : isAsign ? <Briefcase size={18} className="text-orange-400" /> : <Wrench size={18} className="text-blue-400" />}
-            </div>
-            <div className="text-left overflow-hidden">
-               <p className="text-[10px] font-black text-white uppercase truncate leading-none">{currentUser.name}</p>
-               <p className="text-[8px] text-slate-500 font-black uppercase tracking-widest mt-1">{ROLES[userRole].label}</p>
-            </div>
+        <div className="mt-auto space-y-4">
+          <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest text-center">Perfil Activo</p>
+          <div className="grid grid-cols-1 gap-2">
+            {Object.values(ROLES).map(role => (
+              <button key={role.id} onClick={() => { setUserRole(role.id); setSelectedOrder(null); }} className={`flex items-center space-x-3 p-3 rounded-2xl border transition-all ${userRole === role.id ? 'bg-slate-800 border-blue-500 shadow-lg shadow-blue-500/10' : 'bg-slate-900 border-slate-800 opacity-60'}`}>
+                <role.icon size={16} className={role.color} />
+                <span className="text-[10px] font-bold uppercase text-white">{role.label}</span>
+              </button>
+            ))}
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center space-x-3 p-4 bg-red-600/10 hover:bg-red-600 hover:text-white text-red-500 rounded-2xl transition-all group">
-            <LogOut size={18} />
-            <span className="text-xs font-black uppercase tracking-widest">Salir</span>
-          </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-12 custom-scrollbar text-left">
+      <main className="flex-1 overflow-y-auto bg-slate-950 p-16 custom-scrollbar text-left">
         {view === 'dashboard' && (
-          <div className="space-y-10 animate-in fade-in duration-500 max-w-6xl mx-auto text-left">
-            <header className="flex justify-between items-end">
+          <div className="space-y-8 animate-in fade-in duration-500">
+             {canAuthorize && orders.some(o => o.status === 'Pendiente Autorización') && (
+              <div className="bg-purple-500/10 border border-purple-500/30 p-5 rounded-[2rem] flex items-center justify-between shadow-lg text-left">
+                <div className="flex items-center space-x-4 text-purple-400">
+                  <ShieldCheck size={24} />
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.2em]">Autorizaciones Pendientes</p>
+                    <p className="text-[10px] opacity-80">Hay trabajos que superan los ${APPROVAL_THRESHOLD.toLocaleString()} esperando su validación.</p>
+                  </div>
+                </div>
+                <button onClick={() => setView('orders')} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Revisar</button>
+              </div>
+            )}
+            
+            <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-left">
               <div className="text-left">
-                <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">Monitor Parque Activos</h2>
-                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Estado de Flota: <span className="text-blue-500">deepfix-os1</span></p>
+                <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">Panel Operativo</h2>
+                <p className="text-slate-500 text-sm mt-2 uppercase tracking-widest font-bold">Gestión de Flota y Auditoría Técnica</p>
               </div>
               <div className="flex gap-4">
-                 {(isAuth || isAsign) && <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-slate-700">Inyectar BBDD</button>}
-                 {(isAuth || isAsign) && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all">Apertura OT</button>}
+                 {canAddVehicle && <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all">Registrar Vehículo</button>}
+                 {canOpenOrder && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/40 transition-all">Apertura OT</button>}
               </div>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl">
-                <Activity className="text-blue-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-2">Disponibilidad</h3>
-                <p className="text-5xl font-black text-white">{stats.availability}%</p>
-              </div>
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl">
-                <Battery className="text-emerald-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-2 text-center">Salud SOH Prom.</h3>
-                <p className="text-5xl font-black text-emerald-400">{stats.avgSOH}%</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
+                <Activity className="text-blue-400 mx-auto mb-6" size={24} />
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Disponibilidad Flota</h3>
+                <p className="text-5xl font-black tracking-tighter text-white">{stats.availability}%</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
-                <Database className="text-purple-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-2">Activos BBDD</h3>
-                <p className="text-5xl font-black text-white">{vehicles.length}</p>
+                <ShieldCheck className="text-purple-400 mx-auto mb-6" size={24} />
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Umbral Aprobación</h3>
+                <p className="text-5xl font-black tracking-tighter text-white">${(APPROVAL_THRESHOLD/1000).toFixed(0)}k</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
-                <AlertCircle className="text-orange-400 mx-auto mb-4" size={24} />
-                <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Esperando OK</h3>
-                <p className="text-5xl font-black text-orange-400">{stats.pending}</p>
-              </div>
-            </div>
-
-            {/* Caracterización del Parque */}
-            <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 shadow-2xl">
-              <h3 className="font-black text-xl mb-8 uppercase flex items-center tracking-tighter"><RefreshCw className="mr-3 text-blue-500" /> Estado del Arte y Parque Existente</h3>
-              <div className="grid grid-cols-1 gap-4 text-left">
-                 {vehicles.map(v => (
-                   <div key={v.id} className="grid grid-cols-1 md:grid-cols-5 gap-6 items-center p-6 bg-slate-950/50 rounded-[2rem] border border-slate-800 group text-left">
-                     <div className="text-left col-span-1">
-                       <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest leading-none">{v.plate}</p>
-                       <p className="text-base font-black text-white mt-1 uppercase leading-none truncate">{v.model}</p>
-                     </div>
-                     <div className="text-left col-span-2 grid grid-cols-1 gap-2 border-l border-slate-800 pl-6">
-                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center leading-none"><Cpu size={12} className="mr-2 text-slate-600"/> Motor: <span className="text-slate-300 ml-1">{v.motorSpecs}</span></p>
-                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center leading-none"><Battery size={12} className="mr-2 text-slate-600"/> Batería: <span className="text-slate-300 ml-1">{v.batterySpecs}</span></p>
-                        <p className="text-[9px] font-black text-slate-500 uppercase flex items-center leading-none"><Zap size={12} className="mr-2 text-slate-600"/> Control: <span className="text-slate-300 ml-1">{v.controllerSpecs}</span></p>
-                     </div>
-                     <div className="col-span-2 text-right">
-                       <div className="flex justify-between items-center mb-2">
-                         <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Salud Batería (SOH)</p>
-                         <p className={`text-[10px] font-black ${v.batterySOH < 75 ? 'text-red-400' : 'text-emerald-400'}`}>{v.batterySOH}%</p>
-                       </div>
-                       <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                         <div className={`h-full transition-all duration-1000 ${v.batterySOH < 75 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${v.batterySOH}%` }}></div>
-                       </div>
-                     </div>
-                   </div>
-                 ))}
+                <FileEdit className="text-emerald-400 mx-auto mb-6" size={24} />
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">OTs Activas</h3>
+                <p className="text-5xl font-black tracking-tighter text-white">{orders.filter(o => o.status !== 'Cerrada').length}</p>
               </div>
             </div>
           </div>
         )}
 
         {view === 'orders' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in slide-in-from-bottom-6 duration-700 max-w-7xl mx-auto pb-20 text-left">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in fade-in duration-500 text-left">
             <div className="space-y-6 text-left">
-              <div className="flex justify-between items-center mb-10">
-                <h2 className="text-3xl font-black uppercase tracking-tighter">Gestión de Órdenes</h2>
-                {(isAuth || isAsign) && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all">+ Nueva OT</button>}
-              </div>
-              <div className="space-y-4 overflow-y-auto max-h-[70vh] pr-4 custom-scrollbar text-left">
-                {orders.map(o => {
-                  const v = vehicles.find(veh => veh.id === o.vehicleId);
-                  return (
-                    <div key={o.id} onClick={() => setSelectedOrderId(o.id)} className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer relative ${selectedOrderId === o.id ? 'border-blue-500 bg-blue-600/5 ring-4 ring-blue-500/5 shadow-2xl' : 'border-slate-800 bg-slate-900 hover:border-slate-700 shadow-lg'}`}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="text-left">
-                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest leading-none">{o.id}</span>
-                          <h4 className="font-black text-xl leading-none mt-2 uppercase tracking-tight">{v?.model || 'Activo'} ({v?.plate})</h4>
-                          <p className="text-[9px] font-black text-blue-500 mt-2 uppercase tracking-widest leading-none">SC-25: {o.sc25Code}</p>
-                        </div>
-                        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${o.status.includes('Pendiente') ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-400'}`}>{o.status}</span>
+              <h2 className="text-3xl font-black uppercase tracking-tighter mb-10">Intervenciones</h2>
+              <div className="space-y-4 text-left">
+                {orders.map(o => (
+                  <div key={o.id} onClick={() => setSelectedOrder(o)} className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer relative overflow-hidden ${selectedOrder?.id === o.id ? 'border-blue-500 bg-blue-600/5 ring-4 ring-blue-500/5 shadow-2xl' : 'border-slate-800 bg-slate-900 hover:border-slate-700 shadow-lg'}`}>
+                    <div className="flex justify-between items-start mb-4 text-left">
+                      <div className="text-left">
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest leading-none">{o.id}</span>
+                        <h4 className="font-black text-xl tracking-tight mt-2">{vehicles.find(v => v.id === o.vehicleId)?.model || 'Vehículo desconocido'}</h4>
                       </div>
+                      <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${
+                        o.status === 'Abierta' ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 
+                        o.status === 'Asignada' ? 'border-orange-500 text-orange-400 bg-orange-500/10' : 
+                        o.status === 'Pendiente Autorización' ? 'border-purple-500 text-purple-400 bg-purple-500/10 animate-pulse' :
+                        'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+                      }`}>{o.status}</span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-[4rem] p-12 sticky top-0 h-fit shadow-2xl min-h-[600px] flex flex-col text-left">
+            <div className="bg-slate-900 border border-slate-800 rounded-[3.5rem] p-12 sticky top-0 h-fit shadow-2xl min-h-[600px] transition-all text-left">
               {selectedOrder ? (
                 <div className="space-y-10 animate-in slide-in-from-right-8 duration-500 text-left">
                   <header className="flex justify-between items-start border-b border-slate-800 pb-10 text-left">
                     <div className="text-left">
-                      <h3 className="text-4xl font-black text-white tracking-tighter leading-none">{selectedOrder.id}</h3>
-                      <p className="text-slate-500 text-[10px] uppercase font-black mt-3 italic tracking-widest leading-none">Categoría: <span className="text-blue-400">{selectedOrder.category}</span></p>
+                      <h3 className="text-4xl font-black text-white tracking-tighter leading-none mb-3">{selectedOrder.id}</h3>
+                      <p className="text-slate-500 text-[10px] uppercase font-black mt-1">Status: <span className="text-blue-500">{selectedOrder.status}</span></p>
                     </div>
-                    <div className="bg-slate-800 p-6 rounded-3xl text-center border border-slate-700 min-w-[130px] shadow-inner">
-                      <p className="text-[9px] text-slate-500 font-black mb-1 uppercase tracking-widest leading-none text-center">Costo Auditado</p>
-                      <p className="text-2xl font-black text-white leading-none text-center">${(selectedOrder.cost || 0).toLocaleString()}</p>
+                    <div className="bg-slate-800 p-5 rounded-3xl text-center border border-slate-700 min-w-[120px] shadow-inner">
+                      <p className="text-[9px] text-slate-500 font-black mb-1 uppercase tracking-widest leading-none">Costo</p>
+                      <p className="text-2xl font-black text-white leading-none">${(selectedOrder.cost || 0).toLocaleString()}</p>
                     </div>
                   </header>
 
-                  {/* Formulario de Ejecución: Permite modificar el monto libremente */}
-                  {selectedOrder.status === 'Asignada' && (isTech || isAuth) && (
-                    <div className="space-y-8 text-left">
-                       <form onSubmit={(e) => {
-                          e.preventDefault();
-                          const formData = new FormData(e.currentTarget);
-                          const newCost = parseFloat(formData.get('costInput')) || 0;
-                          
-                          if (selectedOrder.category === 'Revisión Parque') {
-                             handleUpdateVehicleSpecs(selectedOrder.vehicleId, {
-                               motorSpecs: formData.get('motorUpdate'),
-                               batterySpecs: formData.get('batteryUpdate'),
-                               controllerSpecs: formData.get('controllerUpdate'),
-                               batterySOH: parseInt(formData.get('sohUpdate')) || 100
-                             });
-                          }
-
-                          const updates = { workDetail: formData.get('workInput'), cost: newCost };
-                          if (newCost > umbralGasto && !selectedOrder.isAuthorized) {
-                            handleUpdateOT(selectedOrder.id, { ...updates, status: 'Pendiente Autorización' }, 'Solicitud de autorización enviada por monto elevado');
-                          } else {
-                            handleUpdateOT(selectedOrder.id, { ...updates, status: 'Cerrada' }, 'Mantenimiento ejecutado y orden cerrada');
-                          }
-                       }} className="space-y-8 text-left">
-                          
-                          {/* Caracterización editable */}
-                          <div className="p-8 bg-slate-950/50 border border-slate-800 rounded-[2.5rem] space-y-6 text-left">
-                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] mb-4 flex items-center leading-none"><Save size={14} className="mr-2"/> Parámetros de Electromovilidad</p>
-                             <div className="grid grid-cols-1 gap-4 text-left">
-                                <input name="motorUpdate" placeholder="Motor Specs" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.motorSpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                <input name="batteryUpdate" placeholder="Battery Specs" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.batterySpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                <div className="grid grid-cols-2 gap-4">
-                                   <input name="controllerUpdate" placeholder="Controller A" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.controllerSpecs} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                   <input name="sohUpdate" type="number" placeholder="SOH %" defaultValue={vehicles.find(v => v.id === selectedOrder.vehicleId)?.batterySOH} className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3 text-xs text-white" />
-                                </div>
-                             </div>
-                          </div>
-
-                          <div className="space-y-6 text-left">
-                             <div className="flex justify-between items-center text-left mb-2">
-                                <label className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] flex items-center leading-none"><Sparkles size={18} className="mr-3"/> Informe de Diagnóstico</label>
-                                <button type="button" onClick={() => generateAiAnalysis(selectedOrder.problemDescription, document.getElementById('workDetailInput').value)} disabled={isAnalyzing} className="bg-blue-600/10 text-blue-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center shadow-lg border border-blue-600/30">
-                                   {isAnalyzing ? <Loader2 size={12} className="mr-2 animate-spin"/> : <Sparkles size={12} className="mr-2"/>} Informe IA
-                                </button>
-                             </div>
-                             <textarea id="workDetailInput" name="workInput" required rows="5" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-10 text-sm outline-none text-white focus:ring-2 focus:ring-blue-500" placeholder="Análisis técnico detallado..."></textarea>
-                             <div className="grid grid-cols-2 gap-6 text-left">
-                               <div className="space-y-2 text-left">
-                                   <label className="text-[9px] font-black text-slate-600 uppercase ml-4 tracking-widest leading-none">Monto Intervención ($)</label>
-                                   <input name="costInput" required type="number" defaultValue={selectedOrder.cost || 0} className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-8 py-5 text-xl font-black text-white shadow-inner outline-none focus:ring-2 focus:ring-blue-500" />
-                               </div>
-                               <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-3xl font-black text-[11px] uppercase text-white shadow-xl transition-all self-end h-[68px] tracking-[0.2em]">GUARDAR Y CERRAR</button>
-                             </div>
-                          </div>
-                       </form>
+                  {/* Acciones de Flujo (Asignación) */}
+                  {selectedOrder.status === 'Abierta' && (
+                    <div className={`pt-10 border-t border-slate-800 space-y-6 ${!canAssignOrder ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+                      <label className="text-[10px] font-black text-orange-400 uppercase tracking-[0.3em] flex items-center leading-none"><UserPlus size={16} className="mr-2" /> Asignación de Técnico</label>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        updateOrderStep(selectedOrder.id, { assignedTech: formData.get('tech'), status: 'Asignada' }, 'Asignación de técnico responsable');
+                      }} className="flex gap-4">
+                        <input name="tech" required placeholder="Nombre del Técnico Ejecutor..." className="flex-1 bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-orange-500 shadow-inner" />
+                        <button type="submit" className="bg-orange-600 hover:bg-orange-500 px-8 rounded-2xl font-black text-[10px] tracking-widest uppercase text-white shadow-xl transition-all">Asignar</button>
+                      </form>
                     </div>
                   )}
 
-                  {/* Bloque del Autorizador */}
-                  {selectedOrder.status === 'Pendiente Autorización' && isAuth && (
-                    <div className="pt-10 border-t border-slate-800 space-y-8 text-left animate-in fade-in duration-700">
-                       <div className="bg-purple-600/10 border border-purple-500/30 p-10 rounded-[3rem] text-center shadow-inner">
-                          <AlertTriangle size={48} className="text-purple-400 mx-auto mb-6 animate-pulse" />
-                          <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-purple-400 mb-6 leading-none">Validación de Costo Excedido</h4>
-                          <form onSubmit={(e) => {
-                             e.preventDefault();
-                             const finalValue = parseFloat(e.currentTarget.finalValue.value) || 0;
-                             handleUpdateOT(selectedOrder.id, { cost: finalValue, status: 'Asignada', isAuthorized: true }, `Presupuesto de $${finalValue.toLocaleString()} autorizado por jefatura.`);
-                          }} className="space-y-8 text-center">
-                             <div className="space-y-3 max-w-[220px] mx-auto text-center">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Validar Monto Final ($)</label>
-                                <input name="finalValue" type="number" defaultValue={selectedOrder.cost} className="w-full bg-slate-900 border border-purple-500/40 rounded-2xl px-6 py-5 text-center text-2xl font-black text-white outline-none focus:ring-2 focus:ring-purple-500" />
-                             </div>
-                             <p className="text-xs text-slate-400 italic px-8">Autorice el monto propuesto o ajústelo antes de liberar la orden para su cierre.</p>
-                             <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 py-6 rounded-[2rem] font-black text-xs uppercase text-white shadow-xl flex items-center justify-center transition-all tracking-widest">
-                                <ThumbsUp size={20} className="mr-3"/> AUTORIZAR MONTO (OK)
-                             </button>
-                          </form>
-                       </div>
+                  {/* Acciones de Flujo (Ejecución) */}
+                  {selectedOrder.status === 'Asignada' && (
+                    <div className={`pt-10 border-t border-slate-800 space-y-8 ${!canExecuteOrder ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+                      <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] flex items-center leading-none"><Wrench size={16} className="mr-2" /> Análisis Técnico y Ejecución</label>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        const cost = parseFloat(formData.get('cost')) || 0;
+                        const workDetail = formData.get('workDetail');
+                        
+                        if (cost > APPROVAL_THRESHOLD && !selectedOrder.isAuthorized) {
+                          updateOrderStep(selectedOrder.id, { workDetail, cost, status: 'Pendiente Autorización' }, 'Solicitud de autorización por costo excedente enviada');
+                        } else {
+                          updateOrderStep(selectedOrder.id, { workDetail, cost, status: 'Cerrada' }, 'Cierre de trabajo finalizado y auditado');
+                        }
+                      }} className="space-y-6">
+                        <textarea required name="workDetail" rows="4" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-8 text-sm outline-none leading-relaxed text-white focus:ring-2 focus:ring-blue-500 shadow-inner" placeholder="Descripción Trabajos Ejecutados..."></textarea>
+                        <div className="grid grid-cols-2 gap-6 text-left">
+                          <div className="space-y-2 text-left">
+                            <label className="text-[9px] font-black text-slate-500 uppercase ml-2 tracking-widest leading-none">Costo Incurrido ($)</label>
+                            <input required name="cost" type="number" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-sm font-black text-white shadow-inner outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
+                          </div>
+                          <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] text-white shadow-2xl transition-all self-end h-[52px]">
+                            Procesar Cierre
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   )}
 
-                  {/* Historial Auditoría */}
+                  {/* Solicitud de Autorización */}
+                  {selectedOrder.status === 'Pendiente Autorización' && (
+                    <div className="pt-10 border-t border-slate-800 space-y-6 text-center">
+                      <div className="bg-purple-600/10 border border-purple-500/30 p-10 rounded-[3rem] text-center shadow-inner">
+                        <AlertTriangle size={48} className="text-purple-400 mx-auto mb-6 animate-pulse" />
+                        <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-purple-400 mb-3 leading-none">Aprobación Pendiente</h4>
+                        <p className="text-xs text-slate-400 mb-10 italic leading-relaxed px-10">La intervención de <strong>${(selectedOrder.cost || 0).toLocaleString()}</strong> supera el límite técnico permitido para cierre inmediato.</p>
+                        {canAuthorize ? (
+                          <button onClick={() => handleAuthorize(selectedOrder.id)} className="w-full bg-purple-600 hover:bg-purple-500 py-6 rounded-[2rem] font-black text-xs uppercase tracking-widest text-white flex items-center justify-center transition-all shadow-xl shadow-purple-900/20">
+                            <ThumbsUp size={20} className="mr-3" /> Autorizar Gasto
+                          </button>
+                        ) : (
+                          <div className="py-6 border-2 border-dashed border-slate-800 rounded-3xl">
+                             <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Esperando validación de nivel Autorizador</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Log de Auditoría */}
                   <div className="pt-12 border-t border-slate-800/50 text-left">
-                    <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-10 flex items-center leading-none italic font-bold tracking-widest text-left"><History size={16} className="mr-3" /> Trazabilidad Técnica Inmutable</h4>
-                    <div className="space-y-8 relative">
+                    <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-12 flex items-center leading-none italic"><History size={16} className="mr-3" /> historial de trazabilidad</h4>
+                    <div className="space-y-10 relative text-left">
                       {(selectedOrder.logs || []).map((log, idx) => (
                         <div key={idx} className="flex gap-8 relative text-left">
-                          <div className={`w-4 h-4 rounded-full mt-1.5 shrink-0 z-10 border-[4px] border-slate-950 ${idx === selectedOrder.logs.length - 1 ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]' : 'bg-slate-700 opacity-50'}`}></div>
+                          <div className={`w-4 h-4 rounded-full mt-1.5 shrink-0 z-10 border-[4px] border-slate-950 shadow-2xl transition-all ${idx === selectedOrder.logs.length - 1 ? 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-125' : 'bg-slate-700 opacity-50'}`}></div>
                           <div className="flex-1 text-left">
-                            <p className="text-xs font-black text-slate-200 uppercase tracking-widest leading-none mb-2 text-left">{log.action}</p>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic opacity-80 leading-none text-left">{log.user} — {log.date}</p>
+                            <p className="text-xs font-black text-slate-200 uppercase tracking-widest leading-none mb-2">{log.action}</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic opacity-80 leading-none">Auditado: {log.user} — {log.date}</p>
                           </div>
                         </div>
                       ))}
@@ -501,67 +402,41 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-10 py-60">
-                  <Database size={120} className="mb-8" />
-                  <p className="font-black text-3xl uppercase tracking-[0.5em]">AUDIT CORE</p>
-                  <p className="text-sm mt-4 font-bold tracking-widest uppercase text-center leading-none">Seleccione un activo para auditar</p>
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-10 py-48">
+                  <Activity size={150} className="mb-12 text-slate-700" />
+                  <p className="font-black text-3xl uppercase tracking-[0.5em]">DEEPFIX OS</p>
+                  <p className="text-sm mt-6 font-bold tracking-[0.3em] uppercase opacity-60 leading-none">Seleccione una intervención para auditar</p>
                 </div>
               )}
             </div>
           </div>
         )}
-
-        {view === 'config' && isAuth && (
-          <div className="space-y-12 animate-in fade-in duration-500 max-w-4xl mx-auto text-left">
-             <header>
-                <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">Administración de Red</h2>
-                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Control de Parámetros Globales</p>
-             </header>
-
-             <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-12 shadow-2xl text-left">
-                <div className="flex items-center justify-between mb-8 text-left leading-none">
-                   <div className="text-left">
-                      <h4 className="text-xl font-black text-white uppercase tracking-tight">Umbral de Aprobación Crítica</h4>
-                      <p className="text-xs text-slate-500 mt-2">Límite financiero para el cierre inmediato de órdenes técnicas.</p>
-                   </div>
-                   <p className="text-4xl font-black text-blue-500 tracking-tighter leading-none">${umbralGasto.toLocaleString()}</p>
-                </div>
-                <input 
-                  type="range" 
-                  min="10000" 
-                  max="500000" 
-                  step="5000" 
-                  value={umbralGasto}
-                  onChange={(e) => setUmbralGasto(parseInt(e.target.value))}
-                  className="w-full h-3 bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue-600 mb-6"
-                />
-             </div>
-          </div>
-        )}
       </main>
 
-      {/* Modals */}
+      {/* Modales */}
       {isNewVehicleModalOpen && (
         <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[4rem] p-16 animate-in zoom-in-95 duration-500 shadow-2xl">
-            <h3 className="text-3xl font-black mb-10 text-white uppercase tracking-tighter text-center leading-none">Inyectar Activo Parque</h3>
-            <form onSubmit={handleAddVehicle} className="space-y-6 text-left">
-              <div className="grid grid-cols-2 gap-4">
-                <input name="model" required placeholder="Modelo" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-6 py-4 text-sm font-bold text-white outline-none" />
-                <input name="plate" required placeholder="Patente" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-6 py-4 text-sm font-mono font-bold text-white outline-none uppercase" />
-              </div>
-              <div className="space-y-3">
-                <input name="motorSpecs" required placeholder="Motor Specs" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white" />
-                <input name="batterySpecs" required placeholder="Battery Specs" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white" />
-                <input name="controllerSpecs" required placeholder="Controller Specs" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white" />
-                <select name="type" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[4rem] p-16 animate-in zoom-in-95 duration-500 shadow-2xl">
+            <h3 className="text-3xl font-black mb-12 text-white uppercase tracking-tighter text-center leading-none">Registrar Activo</h3>
+            <form onSubmit={handleAddVehicle} className="space-y-8 text-left">
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2 leading-none">Tipo de Vehículo</label>
+                <select name="type" className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-inner">
                   <option value="Bicicleta Eléctrica">Bicicleta Eléctrica</option>
                   <option value="Tricicleta Eléctrica">Tricicleta Eléctrica</option>
                 </select>
               </div>
-              <div className="flex gap-4 pt-6 text-center">
-                <button type="button" onClick={() => setIsNewVehicleModalOpen(false)} className="flex-1 py-6 rounded-[2rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400">Cancelar</button>
-                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-6 rounded-[2rem] font-black text-[11px] uppercase text-white shadow-2xl">Registrar</button>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2 leading-none">Modelo / Marca</label>
+                <input name="model" required className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner" placeholder="Ej: EcoXT 500w" />
+              </div>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2 leading-none">Patente / Identificador</label>
+                <input name="plate" required className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-mono font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 uppercase shadow-inner" placeholder="XXX-000" />
+              </div>
+              <div className="flex gap-4 pt-8 text-center">
+                <button type="button" onClick={() => setIsNewVehicleModalOpen(false)} className="flex-1 py-6 rounded-[2rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400 hover:text-white transition-all tracking-widest leading-none">Cancelar</button>
+                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-6 rounded-[2rem] font-black text-[11px] uppercase text-white shadow-2xl tracking-widest leading-none">Registrar</button>
               </div>
             </form>
           </div>
@@ -569,33 +444,32 @@ export default function App() {
       )}
 
       {isNewOrderModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[4.5rem] p-20 animate-in zoom-in-95 duration-500 shadow-2xl">
-            <h3 className="text-4xl font-black mb-10 text-white uppercase tracking-tighter text-left leading-none">Apertura Caso</h3>
+        <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8 text-left">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[4.5rem] p-20 animate-in zoom-in-95 duration-500 shadow-2xl text-left">
+            <h3 className="text-4xl font-black mb-10 text-white uppercase tracking-tighter leading-none text-left">Apertura OT</h3>
             <form onSubmit={handleCreateOrder} className="space-y-8 text-left">
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Activo Parque</label>
-                    <select name="vehicleId" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none">
+              <div className="grid grid-cols-2 gap-6 text-left">
+                 <div className="space-y-2 text-left">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 leading-none">Seleccionar Activo</label>
+                    <select name="vehicleId" className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-inner text-left">
                       {vehicles.map(v => <option key={v.id} value={v.id}>{v.model} ({v.plate})</option>)}
                     </select>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Ref SC-25</label>
-                    <input name="sc25" required placeholder="SC25-XXXX" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none" />
+                  <div className="space-y-2 text-left">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 leading-none">Categoría</label>
+                    <select name="category" className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-inner text-left">
+                      <option value="Correctivo">Correctivo</option>
+                      <option value="Preventivo">Preventivo</option>
+                    </select>
                   </div>
               </div>
-              <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Categoría</label>
-                  <select name="category" className="w-full bg-slate-800 border border-slate-700 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none">
-                    <option value="Revisión Parque">Revisión Parque (Estado del Arte)</option>
-                    <option value="Correctivo">Mantenimiento Correctivo</option>
-                  </select>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 leading-none">Descripción Inicial</label>
+                <textarea name="problemDescription" required rows="4" className="w-full bg-slate-950 border border-slate-800 rounded-[3rem] p-10 text-sm font-medium leading-relaxed text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-left" placeholder="Detalle técnico inicial..."></textarea>
               </div>
-              <textarea name="problemDescription" required rows="4" className="w-full bg-slate-800 border border-slate-700 rounded-[3rem] p-10 text-sm font-medium leading-relaxed text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Descripción técnica inicial..."></textarea>
-              <div className="flex gap-6 pt-6 text-center">
-                <button type="button" onClick={() => setIsNewOrderModalOpen(false)} className="flex-1 py-7 rounded-[2.5rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400">Cancelar</button>
-                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-7 rounded-[2.5rem] font-black text-[11px] uppercase text-white shadow-2xl">Iniciar OT</button>
+              <div className="flex gap-4 pt-6 text-center">
+                <button type="button" onClick={() => setIsNewOrderModalOpen(false)} className="flex-1 py-6 rounded-[2.5rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400 tracking-widest transition-all leading-none">Cerrar</button>
+                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-6 rounded-[2.5rem] font-black text-[11px] uppercase text-white shadow-2xl tracking-widest transition-all leading-none">Iniciar OT</button>
               </div>
             </form>
           </div>
@@ -603,4 +477,6 @@ export default function App() {
       )}
     </div>
   );
-}
+};
+
+export default App;
