@@ -1,482 +1,664 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  Bike, 
-  BarChart2, 
-  PlusCircle, 
-  User, 
-  Clock, 
-  Camera, 
-  CheckCircle2, 
-  AlertCircle, 
-  UserPlus, 
-  FileEdit,
-  DollarSign,
-  Search, 
-  ChevronRight, 
-  X, 
-  History, 
-  Calendar, 
-  Filter, 
-  Download, 
-  Activity, 
-  Zap, 
-  AlertTriangle, 
-  Settings2, 
-  ShieldCheck, 
-  Briefcase, 
-  Wrench, 
-  ThumbsUp, 
-  Paperclip, 
-  File, 
-  Trash2, 
-  UploadCloud 
+  LayoutDashboard, ClipboardList, Bike, BarChart2, PlusCircle, User, 
+  Clock, Camera, CheckCircle2, AlertCircle, UserPlus, FileEdit,
+  DollarSign, Search, ChevronRight, X, History, Calendar, Filter, 
+  Download, Activity, Zap, AlertTriangle, Settings2, ShieldCheck, 
+  Briefcase, Wrench, ThumbsUp, Paperclip, File, Trash2, UploadCloud,
+  Sparkles, Loader2, LogOut, Lock, Battery, BatteryCharging, Gauge,
+  Cpu, ZapOff, Database, ShieldAlert, Save, RefreshCw, QrCode, 
+  ArrowLeftRight, Recycle, HardDrive, Shield, Printer, FileCheck, FileText,
+  Tool
 } from 'lucide-react';
 
-// --- Roles de Usuario ---
+// --- Configuración de IA ---
+const apiKey = ""; 
+
+// --- Perfiles y Seguridad ---
 const ROLES = {
-  AUTORIZADOR: { id: 'AUTORIZADOR', label: 'Autorizador', icon: ShieldCheck, color: 'text-purple-400' },
-  ASIGNADOR: { id: 'ASIGNADOR', label: 'Asignador', icon: Briefcase, color: 'text-orange-400' },
-  EJECUTOR: { id: 'EJECUTOR', label: 'Ejecutor', icon: Wrench, color: 'text-blue-400' }
+  ADMINISTRADOR: { id: 'ADMINISTRADOR', label: 'Administrador', icon: Shield, color: 'text-red-400' },
+  SUPERVISOR: { id: 'SUPERVISOR', label: 'Supervisor', icon: ShieldCheck, color: 'text-purple-400' },
+  TECNICO: { id: 'TECNICO', label: 'Técnico Perito', icon: Wrench, color: 'text-blue-400' },
+  CLIENTE: { id: 'CLIENTE', label: 'Cliente Final', icon: User, color: 'text-emerald-400' }
 };
 
-const APPROVAL_THRESHOLD = 80000;
+const CREDENTIALS = {
+  'administrador': { password: 'administrador123', role: 'ADMINISTRADOR' },
+  'supervisor': { password: 'supervisor123', role: 'SUPERVISOR' },
+  'tecnico': { password: 'tecnico123', role: 'TECNICO' },
+  'cliente': { password: 'cliente123', role: 'CLIENTE' }
+};
 
-const App = () => {
-  // --- Estados de la Aplicación ---
+const UMBRAL_AUTORIZACION = 80000;
+
+export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginForm, setLoginForm] = useState({ user: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
   const [view, setView] = useState('dashboard');
-  const [userRole, setUserRole] = useState(ROLES.AUTORIZADOR.id);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [isNewVehicleModalOpen, setIsNewVehicleModalOpen] = useState(false);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [expenseThreshold, setExpenseThreshold] = useState(200000);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [printDoc, setPrintDoc] = useState(null);
 
-  const [reportFilters, setReportFilters] = useState({
-    startDate: '',
-    endDate: '',
-    tech: 'Todos',
-    type: 'Todos'
-  });
+  // --- Base de Datos: Clientes ---
+  const [customers, setCustomers] = useState([
+    { id: 'C1', name: 'Juan Pérez', email: 'juan@email.com', phone: '+56912345678' },
+    { id: 'C2', name: 'Flota LastMile SpA', email: 'contacto@lastmile.cl', phone: '+5622334455' }
+  ]);
 
+  // --- Base de Datos: Activos ---
   const [vehicles, setVehicles] = useState([
-    { id: 'V1', type: 'Bicicleta Eléctrica', model: 'EcoRide 500', plate: 'BE-2024-01' },
-    { id: 'V2', type: 'Tricicleta Eléctrica', model: 'CargoPlus 3000', plate: 'TE-2024-99' },
-    { id: 'V3', type: 'Bicicleta Eléctrica', model: 'Urban S1', plate: 'BE-2024-05' },
+    { 
+      id: 'DF-CH-1001', 
+      customerId: 'C1',
+      type: 'Bicicleta Eléctrica', 
+      model: 'EcoRide Pro 250', 
+      plate: 'BE-55-90',
+      motorSerial: 'MOT-99821-X',
+      batterySerial: 'BAT-LIT-2024-001',
+      controllerSerial: 'CTRL-V22',
+      currentSoH: 85,
+      poutActual: 242.5,
+      maxSpeed: 25,
+      status: 'Certificado',
+      legalCompliance: true,
+      batteryTrace: {
+        stage: 'Certificación',
+        document: 'Sello de Eficiencia',
+        gestor: 'REP Chile',
+        folio: 'SID-9921',
+        date: '2024-12-20'
+      }
+    }
   ]);
 
   const [orders, setOrders] = useState([
     {
-      id: 'OT-1001',
-      vehicleId: 'V1',
+      id: 'AUDIT-900',
+      vehicleId: 'DF-CH-1001',
+      sc25Ref: 'SC25-2024-A',
       status: 'Cerrada',
-      category: 'Correctivo',
-      problemDescription: 'Falla en el sistema de frenado regenerativo.',
-      assignedTech: 'Juan Técnico',
-      workDetail: 'Se reemplazaron las pastillas de freno y se recalibró el sensor de torque.',
+      category: 'Auditoría Mixta',
+      problemDescription: 'Certificación Ley Retrofit y estado de celdas.',
+      assignedTech: 'Técnico_Perito',
+      workType: 'Mixto',
+      workDetail: 'Vehículo cumple con los 250W nominales tras cálculo Pout. Batería en fase de movilidad activa.',
       cost: 45000,
       isAuthorized: true,
-      attachments: [{ id: 1, name: 'evidencia_frenos.jpg', size: '1.2MB' }],
-      dateAction: '2024-03-10',
-      dateClosed: '2024-03-12',
-      logs: [
-        { action: 'Apertura del caso', user: 'Asignador_01', date: '2024-03-10 09:15' },
-        { action: 'Asignación de técnico', user: 'Asignador_01', date: '2024-03-10 10:30' },
-        { action: 'Cierre de trabajo', user: 'Juan Técnico', date: '2024-03-12 14:00' }
-      ]
-    },
-    {
-      id: 'OT-1005',
-      vehicleId: 'V3',
-      status: 'Pendiente Autorización',
-      category: 'Correctivo',
-      problemDescription: 'Cambio de motor central por falla crítica.',
-      assignedTech: 'Roberto Tech',
-      workDetail: 'Se requiere cambio completo de unidad motriz.',
-      cost: 125000,
-      isAuthorized: false,
-      attachments: [{ id: 2, name: 'presupuesto_motor.pdf', size: '450KB' }],
-      dateAction: '2024-03-22',
-      dateClosed: null,
-      logs: [
-        { action: 'Apertura del caso', user: 'Asignador_01', date: '2024-03-21 10:00' },
-        { action: 'Asignación de técnico', user: 'Asignador_01', date: '2024-03-21 11:00' },
-        { action: 'Solicitud de autorización por costo', user: 'Roberto Tech', date: '2024-03-22 09:00' }
-      ]
+      logs: [{ action: 'Certificación Emitida', user: 'tecnico', date: '2024-12-20' }]
     }
   ]);
 
-  // --- Lógica de Permisos ---
-  const canModifyThreshold = userRole === ROLES.AUTORIZADOR.id;
-  const canAddVehicle = userRole === ROLES.AUTORIZADOR.id || userRole === ROLES.ASIGNADOR.id;
-  const canOpenOrder = userRole === ROLES.AUTORIZADOR.id || userRole === ROLES.ASIGNADOR.id;
-  const canAssignOrder = userRole === ROLES.ASIGNADOR.id || userRole === ROLES.AUTORIZADOR.id;
-  const canExecuteOrder = userRole === ROLES.EJECUTOR.id || userRole === ROLES.AUTORIZADOR.id;
-  const canAuthorize = userRole === ROLES.AUTORIZADOR.id;
+  // --- Lógica de Ingeniería ---
+  const calculatePout = (v, i, r, eta = 0.85) => {
+    return parseFloat(((v * i) - (Math.pow(i, 2) * r)) * eta).toFixed(1);
+  };
 
-  // --- Cálculos de KPIs Dinámicos ---
-  const stats = useMemo(() => {
-    const activeMaintenance = orders.filter(o => o.status !== 'Cerrada').length;
-    const availability = vehicles.length > 0 
-      ? (((vehicles.length - activeMaintenance) / vehicles.length) * 100).toFixed(0)
-      : 0;
+  const getCircularDestination = (soh) => {
+    if (soh >= 80) return { label: 'Movilidad (Pedalear)', color: 'bg-emerald-500', text: 'text-emerald-400', icon: Bike };
+    if (soh >= 40) return { label: 'Reuse (BESS)', color: 'bg-blue-500', text: 'text-blue-400', icon: RefreshCw };
+    return { label: 'Ley REP (Reciclaje)', color: 'bg-red-500', text: 'text-red-400', icon: Recycle };
+  };
 
-    return { availability };
-  }, [orders, vehicles]);
+  // --- Estado de Trazabilidad ---
+  const [traceForm, setTraceForm] = useState({
+    stage: 'Diagnóstico',
+    document: 'Certificado de Disposición',
+    gestor: 'REP Chile'
+  });
 
-  // --- Handlers ---
-  const handleAddVehicle = (e) => {
+  // --- Manejo de Sesión ---
+  const handleLogin = (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const newV = { 
-      id: `V${Date.now()}`, 
-      type: formData.get('type') || 'Bicicleta Eléctrica', 
-      model: formData.get('model') || 'Modelo Genérico', 
-      plate: formData.get('plate') || 'SIN-PATENTE' 
-    };
-    setVehicles([...vehicles, newV]);
-    setIsNewVehicleModalOpen(false);
+    const cred = CREDENTIALS[loginForm.user.toLowerCase()];
+    if (cred && cred.password === loginForm.password) {
+      setIsLoggedIn(true);
+      setCurrentUser({ name: loginForm.user, role: cred.role });
+      setView('dashboard');
+    } else {
+      setLoginError('Credenciales incorrectas');
+    }
   };
 
-  const handleCreateOrder = (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const newO = {
-      id: `OT-${Math.floor(1000 + Math.random() * 9000)}`,
-      vehicleId: formData.get('vehicleId'),
-      status: 'Abierta',
-      category: formData.get('category') || 'Correctivo',
-      problemDescription: formData.get('problemDescription') || 'Sin descripción',
-      assignedTech: null,
-      workDetail: '',
-      cost: 0,
-      isAuthorized: false,
-      attachments: [],
-      dateAction: new Date().toISOString().split('T')[0],
-      logs: [{ action: 'Apertura del caso', user: `${userRole}_01`, date: new Date().toLocaleString() }]
-    };
-    setOrders([newO, ...orders]);
-    setIsNewOrderModalOpen(false);
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    setLoginForm({ user: '', password: '' });
   };
 
-  const updateOrderStep = (id, updates, logAction) => {
-    setOrders(orders.map(o => {
-      if (o.id === id) {
-        return {
-          ...o,
-          ...updates,
-          logs: [...(o.logs || []), { action: logAction, user: `${userRole}_01`, date: new Date().toLocaleString() }]
-        };
-      }
-      return o;
-    }));
-    setSelectedOrder(null);
+  const isClient = currentUser?.role === 'CLIENTE';
+  const isTech = currentUser?.role === 'TECNICO';
+  const isAuthUser = currentUser?.role === 'ADMINISTRADOR' || currentUser?.role === 'SUPERVISOR';
+
+  // --- Impresión de PDF ---
+  const triggerPrint = (type, orderId) => {
+    const order = orders.find(o => o.id === orderId);
+    const vehicle = vehicles.find(v => v.id === order.vehicleId);
+    const client = customers.find(c => c.id === vehicle.customerId);
+    setPrintDoc({ type, order, vehicle, client });
+    setTimeout(() => window.print(), 500);
   };
 
-  const handleFileUpload = (id, fileName) => {
-    const newFile = { id: Date.now(), name: fileName, size: '2.4MB' };
-    setOrders(orders.map(o => {
-      if (o.id === id) {
-        return {
-          ...o,
-          attachments: [...(o.attachments || []), newFile],
-          logs: [...(o.logs || []), { action: `Carga de archivo: ${fileName}`, user: `${userRole}_01`, date: new Date().toLocaleString() }]
-        };
-      }
-      return o;
-    }));
-  };
+  // --- Componentes Auxiliares ---
+  const SelectedOrderData = useMemo(() => orders.find(o => o.id === selectedOrderId), [orders, selectedOrderId]);
 
-  const handleAuthorize = (id) => {
-    setOrders(orders.map(o => {
-      if (o.id === id) {
-        return {
-          ...o,
-          status: 'Asignada',
-          isAuthorized: true,
-          logs: [...(o.logs || []), { action: 'Autorización de costo excedente concedida', user: `${userRole}_01`, date: new Date().toLocaleString() }]
-        };
-      }
-      return o;
-    }));
-    setSelectedOrder(null);
-  };
+  // --- Renderizado de Documento ---
+  if (printDoc) {
+    const { type, order, vehicle, client } = printDoc;
+    const isBatteryHistory = type === 'BATTERY';
+    const isCert = type === 'CERT';
+
+    return (
+      <div className="fixed inset-0 bg-white text-slate-900 z-[999] p-12 overflow-y-auto font-sans printable-area text-left">
+        <button onClick={() => setPrintDoc(null)} className="fixed top-8 right-8 bg-slate-900 text-white p-3 rounded-full no-print shadow-xl">
+          <X size={20}/>
+        </button>
+        
+        <div className="flex justify-between items-start border-b-4 border-slate-900 pb-8 mb-10">
+          <div>
+            <h1 className="text-4xl font-black uppercase tracking-tighter italic">DeepFix<span className="text-blue-600 not-italic">OS</span></h1>
+            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mt-1">Gestión Técnica de Electromovilidad</p>
+          </div>
+          <div className="text-right">
+            <div className="bg-slate-900 text-white px-5 py-2 text-xs font-black uppercase mb-2">
+              {isCert ? 'Certificado de Cumplimiento' : isBatteryHistory ? 'Hoja de Vida de Batería' : 'Comprobante de Servicio'}
+            </div>
+            <p className="text-xs font-bold uppercase">ID Activo: {vehicle.id}</p>
+            <p className="text-[10px] text-slate-500">Emisión: {new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-12 mb-12">
+           <div className="space-y-6">
+              <section>
+                 <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-3 pb-1">Identificación del Activo</h2>
+                 <p className="text-xs"><strong>Cliente Solicitante:</strong> {client.name}</p>
+                 <p className="text-xs"><strong>Vehículo / Chasis:</strong> {vehicle.model} ({vehicle.plate})</p>
+                 <p className="text-xs"><strong>ID Chasis:</strong> {vehicle.id}</p>
+                 <p className="text-xs"><strong>Técnico Responsable:</strong> {order.assignedTech}</p>
+              </section>
+              <section>
+                 <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-3 pb-1">Estado Técnico</h2>
+                 <p className="text-xs"><strong>Potencia Real ($P_{out}$):</strong> {vehicle.poutActual}W</p>
+                 <p className="text-xs"><strong>Salud de Batería (SoH):</strong> {vehicle.currentSoH}%</p>
+                 <p className="text-xs"><strong>Categoría Ley REP:</strong> {getCircularDestination(vehicle.currentSoH).label}</p>
+              </section>
+           </div>
+           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col items-center justify-center space-y-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase">Firma Digital SHA-256</p>
+              <QrCode size={120} className="text-slate-900" />
+              <p className="text-[8px] font-mono text-center break-all opacity-50 uppercase leading-relaxed px-4">
+                DFOS_CERT_{vehicle.id}_{order.id}_{Math.random().toString(36).substr(2, 9)}
+              </p>
+           </div>
+        </div>
+
+        {isBatteryHistory && (
+          <div className="mb-12">
+            <h2 className="text-[10px] font-black uppercase text-blue-600 border-b border-slate-200 mb-4 pb-1 italic">Bitácora de Trazabilidad (Circularidad)</h2>
+            <table className="w-full text-left text-[11px]">
+               <thead>
+                  <tr className="border-b-2 border-slate-100">
+                     <th className="py-2">Etapa</th>
+                     <th className="py-2">Documento Emitido</th>
+                     <th className="py-2">Gestor de Residuos</th>
+                     <th className="py-2">N° Folio SIDREP</th>
+                  </tr>
+               </thead>
+               <tbody>
+                  <tr className="border-b border-slate-50">
+                     <td className="py-3 font-bold">{vehicle.batteryTrace?.stage || 'Diagnóstico'}</td>
+                     <td className="py-3">{vehicle.batteryTrace?.document || 'Acta Inicial'}</td>
+                     <td className="py-3">{vehicle.batteryTrace?.gestor || 'DeepFix'}</td>
+                     <td className="py-3">{vehicle.batteryTrace?.folio || 'EN TRAMITE'}</td>
+                  </tr>
+               </tbody>
+            </table>
+          </div>
+        )}
+
+        {!isCert && !isBatteryHistory && (
+          <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 mb-12">
+            <h2 className="text-[10px] font-black uppercase text-slate-500 mb-4 tracking-widest">Resumen de Intervención ({order.workType})</h2>
+            <p className="text-xs italic text-slate-700 leading-relaxed">"{order.workDetail}"</p>
+            <div className="mt-6 pt-6 border-t border-slate-200">
+               <p className="text-[9px] font-black text-slate-400 uppercase">Valorización del Trabajo</p>
+               <p className="text-2xl font-black">${order.cost.toLocaleString()} CLP</p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-24 pt-10 border-t border-slate-200 grid grid-cols-2 gap-20 text-center">
+           <div>
+              <p className="text-xs font-black uppercase underline">{order.assignedTech}</p>
+              <p className="text-[9px] text-slate-500 font-bold uppercase mt-2">Firma Técnico Perito</p>
+           </div>
+           <div>
+              <p className="text-xs font-black uppercase underline">DeepFix OS Network</p>
+              <p className="text-[9px] text-slate-500 font-bold uppercase mt-2">Sello de Cumplimiento Legal</p>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Interfaz de Usuario ---
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-12 shadow-2xl animate-in zoom-in-95 duration-500 text-center">
+          <div className="flex flex-col items-center mb-10">
+             <div className="bg-blue-600 p-4 rounded-3xl shadow-xl mb-6 shadow-blue-900/40">
+                <RefreshCw className="text-white" size={32} />
+             </div>
+             <h1 className="text-4xl font-black text-white uppercase tracking-tighter italic">DeepFix<span className="text-blue-500 not-italic">OS</span></h1>
+             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-3">Seguridad Técnica de Flota</p>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-5 text-left">
+             <input type="text" placeholder="Usuario" required className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={loginForm.user} onChange={e => setLoginForm({...loginForm, user: e.target.value})} />
+             <input type="password" placeholder="Contraseña" required className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} />
+             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-xl transition-all mt-4 leading-none">Acceso Pericial</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Extracción del icono de rol para evitar error de sintaxis JSX
+  const CurrentRoleIcon = ROLES[currentUser.role].icon;
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-72 border-r border-slate-800 bg-slate-900/40 p-10 flex flex-col">
-        <div className="flex items-center space-x-4 mb-12">
-          <div className="bg-blue-600 p-2.5 rounded-2xl shadow-xl shadow-blue-900/40">
-            <Settings2 className="text-white" size={24} />
-          </div>
-          <h1 className="text-xl font-black text-white leading-none tracking-tighter">MANTENCIÓN<br/><span className="text-[10px] font-bold text-blue-500 tracking-[0.3em]">ACTIVOS</span></h1>
+      <aside className="w-72 border-r border-slate-800 bg-slate-900/40 p-8 flex flex-col no-print">
+        <div className="flex items-center space-x-4 mb-12 px-2">
+          <div className="bg-blue-600 p-2 rounded-xl shadow-lg"><RefreshCw size={20} className="text-white"/></div>
+          <h1 className="text-xl font-black tracking-tighter uppercase italic leading-none text-left">DeepFix<br/><span className="text-blue-500 not-italic text-[10px] tracking-[0.4em]">os1 - Chile</span></h1>
         </div>
-        
-        <nav className="space-y-3 flex-1">
-          <button onClick={() => setView('dashboard')} className={`w-full text-left flex items-center space-x-4 px-6 py-4 rounded-[1.5rem] transition-all ${view === 'dashboard' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800'}`}>
-            <LayoutDashboard size={20} /> <span className="text-sm font-bold uppercase tracking-widest">Dashboard</span>
+
+        <nav className="space-y-2 flex-1 text-left">
+          <button onClick={() => setView('dashboard')} className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${view === 'dashboard' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>
+            <LayoutDashboard size={20} /> <span className="text-xs font-black uppercase tracking-widest">Dashboard</span>
           </button>
-          <button onClick={() => setView('orders')} className={`w-full text-left flex items-center space-x-4 px-6 py-4 rounded-[1.5rem] transition-all ${view === 'orders' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800'}`}>
-            <ClipboardList size={20} /> <span className="text-sm font-bold uppercase tracking-widest">Órdenes Trabajo</span>
+          <button onClick={() => setView('orders')} className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${view === 'orders' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>
+            <ClipboardList size={20} /> <span className="text-xs font-black uppercase tracking-widest">Órdenes</span>
           </button>
+          {!isClient && (
+            <button onClick={() => setView('customers')} className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${view === 'customers' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>
+              <UserPlus size={20} /> <span className="text-xs font-black uppercase tracking-widest leading-none text-left">Clientes</span>
+            </button>
+          )}
         </nav>
 
-        <div className="mt-auto space-y-4">
-          <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest text-center">Perfil Activo</p>
-          <div className="grid grid-cols-1 gap-2">
-            {Object.values(ROLES).map(role => (
-              <button key={role.id} onClick={() => { setUserRole(role.id); setSelectedOrder(null); }} className={`flex items-center space-x-3 p-3 rounded-2xl border transition-all ${userRole === role.id ? 'bg-slate-800 border-blue-500 shadow-lg shadow-blue-500/10' : 'bg-slate-900 border-slate-800 opacity-60'}`}>
-                <role.icon size={16} className={role.color} />
-                <span className="text-[10px] font-bold uppercase text-white">{role.label}</span>
-              </button>
-            ))}
-          </div>
+        <div className="mt-auto space-y-4 border-t border-slate-800 pt-8 text-left">
+           <div className="flex items-center space-x-3 p-3 bg-slate-900 rounded-2xl border border-slate-800">
+              <div className="bg-slate-800 p-2 rounded-xl shrink-0">
+                 <CurrentRoleIcon size={16} className={ROLES[currentUser.role].color} />
+              </div>
+              <div className="overflow-hidden">
+                 <p className="text-[10px] font-black text-white uppercase truncate">{currentUser.name}</p>
+                 <p className="text-[8px] text-slate-500 font-bold uppercase">{ROLES[currentUser.role].label}</p>
+              </div>
+           </div>
+           <button onClick={handleLogout} className="w-full flex items-center justify-center space-x-3 p-4 bg-red-600/10 hover:bg-red-600 hover:text-white text-red-500 rounded-2xl transition-all group">
+              <LogOut size={16} /> <span className="text-[10px] font-black uppercase tracking-widest leading-none">Cerrar Sesión</span>
+           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-slate-950 p-16 custom-scrollbar text-left">
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto p-12 custom-scrollbar text-left no-print">
         {view === 'dashboard' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-             {canAuthorize && orders.some(o => o.status === 'Pendiente Autorización') && (
-              <div className="bg-purple-500/10 border border-purple-500/30 p-5 rounded-[2rem] flex items-center justify-between shadow-lg text-left">
-                <div className="flex items-center space-x-4 text-purple-400">
-                  <ShieldCheck size={24} />
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.2em]">Autorizaciones Pendientes</p>
-                    <p className="text-[10px] opacity-80">Hay trabajos que superan los ${APPROVAL_THRESHOLD.toLocaleString()} esperando su validación.</p>
-                  </div>
+          <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-500 text-left">
+            <header className="flex justify-between items-end">
+                <div className="text-left">
+                   <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none italic">Estado del Arte</h2>
+                   <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Monitoreo de Celdas y Cumplimiento Normativo</p>
                 </div>
-                <button onClick={() => setView('orders')} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Revisar</button>
-              </div>
-            )}
-            
-            <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-left">
-              <div className="text-left">
-                <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">Panel Operativo</h2>
-                <p className="text-slate-500 text-sm mt-2 uppercase tracking-widest font-bold">Gestión de Flota y Auditoría Técnica</p>
-              </div>
-              <div className="flex gap-4">
-                 {canAddVehicle && <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all">Registrar Vehículo</button>}
-                 {canOpenOrder && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/40 transition-all">Apertura OT</button>}
-              </div>
+                {!isClient && isAuthUser && (
+                   <button onClick={() => setIsNewVehicleModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">Inyectar Activo</button>
+                )}
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
-                <Activity className="text-blue-400 mx-auto mb-6" size={24} />
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Disponibilidad Flota</h3>
-                <p className="text-5xl font-black tracking-tighter text-white">{stats.availability}%</p>
-              </div>
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
-                <ShieldCheck className="text-purple-400 mx-auto mb-6" size={24} />
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Umbral Aprobación</h3>
-                <p className="text-5xl font-black tracking-tighter text-white">${(APPROVAL_THRESHOLD/1000).toFixed(0)}k</p>
-              </div>
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center">
-                <FileEdit className="text-emerald-400 mx-auto mb-6" size={24} />
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">OTs Activas</h3>
-                <p className="text-5xl font-black tracking-tighter text-white">{orders.filter(o => o.status !== 'Cerrada').length}</p>
-              </div>
+            {/* Monitor Circular SoH */}
+            <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 shadow-2xl text-left">
+               <h3 className="font-black text-xl mb-10 uppercase flex items-center italic tracking-tighter leading-none"><BatteryCharging className="mr-3 text-emerald-400" /> Monitor de Revalorización de Litio</h3>
+               <div className="space-y-12">
+                  {vehicles.map(v => {
+                    const dest = getCircularDestination(v.currentSoH);
+                    const DestIcon = dest.icon;
+                    return (
+                      <div key={v.id} className="space-y-4">
+                        <div className="flex justify-between items-end px-2">
+                           <div className="text-left">
+                              <p className="text-xs font-black text-blue-500 uppercase leading-none">{v.id}</p>
+                              <h4 className="text-lg font-black text-white uppercase leading-none mt-1">{v.model}</h4>
+                           </div>
+                           <div className={`px-4 py-1.5 rounded-xl bg-opacity-20 border border-current flex items-center space-x-2 ${dest.text}`}>
+                              <DestIcon size={12}/>
+                              <span className="text-[10px] font-black uppercase tracking-widest">{dest.label}</span>
+                           </div>
+                        </div>
+                        <div className="relative h-4 bg-slate-800 rounded-full overflow-hidden shadow-inner group">
+                           <div className={`h-full transition-all duration-1000 ${dest.color}`} style={{ width: `${v.currentSoH}%` }}></div>
+                           <div className="absolute top-0 left-[40%] bottom-0 w-0.5 bg-slate-950 opacity-40"></div>
+                           <div className="absolute top-0 left-[80%] bottom-0 w-0.5 bg-slate-950 opacity-40"></div>
+                        </div>
+                        <div className="flex justify-between text-[8px] font-black text-slate-600 uppercase tracking-[0.2em] px-1">
+                           <span>Reciclaje (Ley REP)</span>
+                           <span>Second Life (BESS)</span>
+                           <span>Movilidad (Pedalear)</span>
+                           <span>Estado Nuevo</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+               <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-left">
+                  <div className="flex justify-between items-start mb-6 text-left leading-none">
+                    <div className="p-3 bg-blue-600/20 rounded-2xl"><Zap className="text-blue-400" size={24}/></div>
+                    <p className="text-3xl font-black">250W</p>
+                  </div>
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Normalización Ley Retrofit</h3>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">Vehículos auditados y certificados bajo el marco legal de ciclos livianos en Chile.</p>
+               </div>
+               <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] shadow-xl text-left">
+                  <div className="flex justify-between items-start mb-6 text-left leading-none">
+                    <div className="p-3 bg-red-600/20 rounded-2xl"><Recycle className="text-red-400" size={24}/></div>
+                    <p className="text-3xl font-black">Ley REP</p>
+                  </div>
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Trazabilidad de Residuos</h3>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">Registro inmutable de disposición final y reciclaje químico de celdas de litio.</p>
+               </div>
             </div>
           </div>
         )}
 
         {view === 'orders' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in fade-in duration-500 text-left">
-            <div className="space-y-6 text-left">
-              <h2 className="text-3xl font-black uppercase tracking-tighter mb-10">Intervenciones</h2>
-              <div className="space-y-4 text-left">
-                {orders.map(o => (
-                  <div key={o.id} onClick={() => setSelectedOrder(o)} className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer relative overflow-hidden ${selectedOrder?.id === o.id ? 'border-blue-500 bg-blue-600/5 ring-4 ring-blue-500/5 shadow-2xl' : 'border-slate-800 bg-slate-900 hover:border-slate-700 shadow-lg'}`}>
-                    <div className="flex justify-between items-start mb-4 text-left">
-                      <div className="text-left">
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest leading-none">{o.id}</span>
-                        <h4 className="font-black text-xl tracking-tight mt-2">{vehicles.find(v => v.id === o.vehicleId)?.model || 'Vehículo desconocido'}</h4>
-                      </div>
-                      <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${
-                        o.status === 'Abierta' ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 
-                        o.status === 'Asignada' ? 'border-orange-500 text-orange-400 bg-orange-500/10' : 
-                        o.status === 'Pendiente Autorización' ? 'border-purple-500 text-purple-400 bg-purple-500/10 animate-pulse' :
-                        'border-emerald-500 text-emerald-400 bg-emerald-500/10'
-                      }`}>{o.status}</span>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-7xl mx-auto animate-in fade-in duration-700 pb-20 text-left">
+             <div className="space-y-6 text-left">
+                <div className="flex justify-between items-center mb-10 text-left leading-none">
+                   <h2 className="text-3xl font-black uppercase tracking-tighter italic leading-none">Consola de Peritaje</h2>
+                   {!isClient && (isTech || isAuthUser) && <button onClick={() => setIsNewOrderModalOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">+ Peritaje Dual</button>}
+                </div>
+                <div className="space-y-4 overflow-y-auto max-h-[75vh] pr-4 custom-scrollbar text-left">
+                   {orders.map(o => {
+                     const v = vehicles.find(veh => veh.id === o.vehicleId);
+                     return (
+                       <div key={o.id} onClick={() => setSelectedOrderId(o.id)} className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer relative overflow-hidden ${selectedOrderId === o.id ? 'border-blue-500 bg-blue-600/5 ring-4 ring-blue-500/5 shadow-2xl' : 'border-slate-800 bg-slate-900 shadow-lg'}`}>
+                          <div className="flex justify-between items-start mb-4 text-left leading-none">
+                             <div className="text-left leading-none">
+                                <span className="text-[10px] font-black text-slate-600 uppercase leading-none">{o.id}</span>
+                                <h4 className="font-black text-xl leading-none mt-2 uppercase tracking-tight">{v?.model}</h4>
+                                <p className="text-[9px] font-bold text-blue-400 mt-2 uppercase leading-none">Perfil: {o.workType || 'Híbrido'}</p>
+                             </div>
+                             <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${o.status === 'Cerrada' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-blue-500 text-blue-400'}`}>{o.status}</span>
+                          </div>
+                          {o.status === 'Cerrada' && (
+                            <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-slate-800/50">
+                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('CERT', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-blue-400 uppercase hover:text-white transition-colors">
+                                 <Printer size={12}/> <span>Certificado QR</span>
+                               </button>
+                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('BATTERY', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-emerald-500 uppercase hover:text-white transition-colors">
+                                 <Battery size={12}/> <span>Hoja Vida Litio</span>
+                               </button>
+                               <button onClick={(e) => { e.stopPropagation(); triggerPrint('WORK', o.id); }} className="flex items-center space-x-2 text-[9px] font-black text-slate-400 uppercase hover:text-white transition-colors">
+                                 <FileCheck size={12}/> <span>Comprobante</span>
+                               </button>
+                            </div>
+                          )}
+                       </div>
+                     )
+                   })}
+                </div>
+             </div>
+
+             <div className="bg-slate-900 border border-slate-800 rounded-[4rem] p-12 sticky top-0 h-fit shadow-2xl min-h-[600px] flex flex-col text-left leading-none">
+                {selectedOrderId && SelectedOrderData ? (
+                  <div className="space-y-10 animate-in slide-in-from-right-8 duration-500 text-left leading-none">
+                     <header className="flex justify-between items-start border-b border-slate-800 pb-10 text-left leading-none">
+                        <div className="text-left leading-none">
+                           <h3 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedOrderId}</h3>
+                           <p className="text-slate-500 text-[10px] font-black mt-3 italic uppercase leading-none">Normalización y Trazabilidad Ley REP</p>
+                        </div>
+                     </header>
+
+                     {SelectedOrderData.status === 'Asignada' && (isTech || isAuthUser) && (
+                       <form onSubmit={(e) => {
+                         e.preventDefault();
+                         const fd = new FormData(e.currentTarget);
+                         const pout = calculatePout(parseFloat(fd.get('v')), parseFloat(fd.get('i')), parseFloat(fd.get('r')));
+                         
+                         setVehicles(prev => prev.map(v => v.id === SelectedOrderData.vehicleId ? {
+                           ...v,
+                           poutActual: parseFloat(pout),
+                           currentSoH: parseInt(fd.get('soh')),
+                           legalCompliance: parseFloat(pout) <= 250,
+                           batteryTrace: {
+                              stage: traceForm.stage,
+                              document: traceForm.document,
+                              gestor: traceForm.gestor,
+                              folio: fd.get('folio'),
+                              date: fd.get('traceDate')
+                           }
+                         } : v));
+
+                         handleUpdateOT(selectedOrderId, { 
+                           workDetail: fd.get('detail'), 
+                           cost: parseFloat(fd.get('cost')),
+                           workType: fd.get('workType'),
+                           status: (parseFloat(fd.get('cost')) > UMBRAL_AUTORIZACION) ? 'Pendiente Autorización' : 'Cerrada' 
+                         }, `Peritaje Cerrado. Pout: ${pout}W. Trazabilidad registrada.`);
+                       }} className="space-y-8 text-left leading-none">
+                          
+                          <div className="grid grid-cols-2 gap-4 text-left leading-none">
+                             <div className="space-y-1 text-left leading-none">
+                                <label className="text-[10px] font-black text-slate-600 uppercase ml-2 leading-none">Perfil de Trabajo</label>
+                                <select name="workType" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-white outline-none appearance-none shadow-inner">
+                                   <option value="Eléctrico">Eléctrico</option>
+                                   <option value="Mecánico">Mecánico</option>
+                                   <option value="Mixto">Híbrido (Mixto)</option>
+                                </select>
+                             </div>
+                             <div className="space-y-1 text-left leading-none">
+                                <label className="text-[10px] font-black text-slate-600 uppercase ml-2 leading-none">Salud Litio (SoH %)</label>
+                                <input name="soh" type="number" required defaultValue="85" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-white outline-none shadow-inner" />
+                             </div>
+                          </div>
+
+                          <div className="p-8 bg-slate-950/50 border border-slate-800 rounded-[2.5rem] space-y-6 text-left leading-none">
+                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] flex items-center leading-none italic"><Battery size={14} className="mr-2"/> Trazabilidad de Batería</p>
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left leading-none">
+                                <div className="space-y-1 leading-none">
+                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Etapa (Selector A)</label>
+                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceForm.stage} onChange={e => setTraceForm({...traceForm, stage: e.target.value})}>
+                                      <option>Diagnóstico</option><option>Clasificación</option><option>Recuperación</option><option>Certificación</option>
+                                   </select>
+                                </div>
+                                <div className="space-y-1 leading-none">
+                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Acción (Selector B)</label>
+                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceForm.document} onChange={e => setTraceForm({...traceForm, document: e.target.value})}>
+                                      <option>Certificado de Disposición</option><option>Certificado de Reciclaje</option><option>Acta de BESS</option>
+                                   </select>
+                                </div>
+                                <div className="space-y-1 leading-none">
+                                   <label className="text-[8px] font-black text-slate-600 uppercase ml-2">Gestor (Selector C)</label>
+                                   <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-[10px] text-white outline-none" value={traceForm.gestor} onChange={e => setTraceForm({...traceForm, gestor: e.target.value})}>
+                                      <option>REP Chile</option><option>Prolitio</option><option>Depura Rec.</option><option>Litio Electric</option><option>Otro</option>
+                                   </select>
+                                </div>
+                             </div>
+
+                             {traceForm.document === 'Certificado de Reciclaje' && (
+                               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800 animate-in slide-in-from-top-2 duration-300 text-left">
+                                  <div className="space-y-1 text-left leading-none">
+                                     <label className="text-[8px] font-black text-red-500 uppercase ml-2 leading-none">Folio SIDREP</label>
+                                     <input name="folio" placeholder="SID-XXXX" className="w-full bg-slate-900 border border-red-500/20 rounded-xl px-4 py-3 text-[10px] text-white outline-none" />
+                                  </div>
+                                  <div className="space-y-1 text-left leading-none">
+                                     <label className="text-[8px] font-black text-red-500 uppercase ml-2 leading-none">Fecha Emisión</label>
+                                     <input name="traceDate" type="date" className="w-full bg-slate-900 border border-red-500/20 rounded-xl px-4 py-3 text-[10px] text-white outline-none" />
+                                  </div>
+                               </div>
+                             )}
+                          </div>
+
+                          <div className="p-8 bg-slate-950/50 border border-slate-800 rounded-[2.5rem] space-y-6 text-left leading-none">
+                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em] flex items-center leading-none italic"><Cpu size={14} className="mr-2"/> Motor de Reglas (250W)</p>
+                             <div className="grid grid-cols-3 gap-4 text-left leading-none">
+                                <input name="v" placeholder="Voltaje (V)" required type="number" step="0.1" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
+                                <input name="i" placeholder="Amperaje (I)" required type="number" step="0.1" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
+                                <input name="r" placeholder="Resistencia (Ω)" required type="number" step="0.001" className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-center leading-none" />
+                             </div>
+                          </div>
+
+                          <div className="space-y-6 text-left leading-none">
+                             <textarea name="detail" required rows="3" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-10 text-sm outline-none text-white focus:ring-2 focus:ring-blue-500" placeholder="Descripción técnica detallada..."></textarea>
+                             <div className="grid grid-cols-2 gap-6 items-end text-left leading-none">
+                                <div className="space-y-2 text-left leading-none">
+                                   <label className="text-[9px] font-black text-slate-600 uppercase ml-4 tracking-widest leading-none">Valorización ($)</label>
+                                   <input name="cost" required type="number" defaultValue="0" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-8 py-5 text-xl font-black text-white shadow-inner outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-3xl font-black text-[11px] uppercase text-white shadow-xl transition-all h-[68px] tracking-[0.2em] leading-none">CERRAR Y CERTIFICAR</button>
+                             </div>
+                          </div>
+                       </form>
+                     )}
+
+                     {SelectedOrderData.status === 'Pendiente Autorización' && isAuthUser && (
+                       <div className="pt-10 border-t border-slate-800 space-y-8 animate-in fade-in duration-700 text-center leading-none">
+                          <div className="bg-purple-600/10 border border-purple-500/30 p-10 rounded-[3rem] text-center shadow-inner leading-none">
+                             <ShieldCheck size={48} className="text-purple-400 mx-auto mb-6 animate-pulse" />
+                             <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-purple-400 mb-4 leading-none">Autorización de Presupuesto Perito</h4>
+                             <p className="text-xs text-slate-400 italic px-8 mb-10 leading-relaxed text-center">Intervención por ${SelectedOrderData.cost.toLocaleString()} requiere validación jerárquica para habilitar certificados.</p>
+                             <button onClick={() => handleUpdateOT(selectedOrderId, { status: 'Cerrada', isAuthorized: true }, 'Certificación autorizada por supervisión.')} className="w-full bg-purple-600 hover:bg-purple-500 py-6 rounded-[2rem] font-black text-xs uppercase text-white shadow-xl flex items-center justify-center transition-all tracking-[0.2em] leading-none">
+                                <ThumbsUp size={20} className="mr-3"/> VALIDAR Y FIRMAR (OK)
+                             </button>
+                          </div>
+                       </div>
+                     )}
+
+                     <div className="pt-12 border-t border-slate-800/50 text-left">
+                        <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-10 flex items-center italic font-bold tracking-widest leading-none text-left"><History size={16} className="mr-3" /> Bitácora Digital Inmutable</h4>
+                        <div className="space-y-8 relative text-left">
+                           {(SelectedOrderData.logs || []).map((log, idx) => (
+                             <div key={idx} className="flex gap-8 relative text-left">
+                                <div className={`w-4 h-4 rounded-full mt-1.5 shrink-0 z-10 border-[4px] border-slate-950 ${idx === 0 ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]' : 'bg-slate-700 opacity-50'}`}></div>
+                                <div className="flex-1 text-left">
+                                   <p className="text-xs font-black text-slate-200 uppercase tracking-widest leading-none mb-2 text-left">{log.action}</p>
+                                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic opacity-80 leading-none text-left">{log.user} — {log.date}</p>
+                                </div>
+                             </div>
+                           ))}
+                        </div>
+                     </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-10 py-60 leading-none">
+                     <RefreshCw size={120} className="mb-8" />
+                     <p className="font-black text-3xl uppercase tracking-[0.5em] leading-none">AUDIT CORE</p>
+                  </div>
+                )}
+             </div>
+          </div>
+        )}
+
+        {view === 'customers' && !isClient && (
+          <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500 text-left leading-none">
+             <header className="flex justify-between items-end leading-none">
+                <div className="text-left leading-none">
+                   <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none italic">Gestión de Clientes</h2>
+                   <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 leading-none">Propiedad Legal de Flota y Activos</p>
+                </div>
+                <button className="bg-emerald-600 hover:bg-emerald-500 px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all leading-none">+ Nuevo Titular</button>
+             </header>
+
+             <div className="grid grid-cols-1 gap-6 text-left leading-none">
+                {customers.map(c => (
+                  <div key={c.id} className="bg-slate-900 border border-slate-800 p-10 rounded-[3.5rem] shadow-xl text-left leading-none">
+                     <div className="flex justify-between items-start mb-8 border-b border-slate-800 pb-8 text-left leading-none">
+                        <div className="text-left leading-none">
+                           <h4 className="text-2xl font-black text-white uppercase tracking-tight leading-none">{c.name}</h4>
+                           <p className="text-xs text-slate-500 mt-2 font-bold uppercase tracking-widest leading-none">{c.email} | {c.phone}</p>
+                        </div>
+                        <div className="bg-slate-800 px-6 py-3 rounded-2xl text-center leading-none">
+                           <p className="text-[9px] font-black text-slate-500 uppercase leading-none">Activos</p>
+                           <p className="text-xl font-black text-emerald-400 leading-none mt-1">{vehicles.filter(v => v.customerId === c.id).length}</p>
+                        </div>
+                     </div>
+
+                     <div className="space-y-4 text-left leading-none">
+                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-4 flex items-center leading-none text-left italic leading-none"><Bike size={14} className="mr-2"/> Activos Bajo Gestión</p>
+                        {vehicles.filter(v => v.customerId === c.id).map(v => (
+                          <div key={v.id} className="flex items-center justify-between p-6 bg-slate-950/50 rounded-[2rem] border border-slate-800 group hover:border-blue-500/30 transition-all text-left leading-none">
+                             <div className="text-left leading-none">
+                                <p className="text-sm font-black text-white uppercase leading-none">{v.model}</p>
+                                <p className="text-[9px] font-bold text-blue-500 mt-2 uppercase tracking-widest leading-none">CHASIS: {v.id}</p>
+                             </div>
+                             <div className="flex items-center space-x-6 text-left leading-none">
+                                <div className="text-right leading-none">
+                                   <p className="text-[9px] font-black text-slate-500 uppercase leading-none">Potencia</p>
+                                   <p className="text-xs font-bold text-white mt-1 leading-none">{v.poutActual}W</p>
+                                </div>
+                                {isAuthUser && (
+                                  <button onClick={() => { setIsTransferModalOpen(v.id); }} className="bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center leading-none">
+                                     <ArrowLeftRight size={14} className="mr-2"/> Traspasar
+                                  </button>
+                                )}
+                             </div>
+                          </div>
+                        ))}
+                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-[3.5rem] p-12 sticky top-0 h-fit shadow-2xl min-h-[600px] transition-all text-left">
-              {selectedOrder ? (
-                <div className="space-y-10 animate-in slide-in-from-right-8 duration-500 text-left">
-                  <header className="flex justify-between items-start border-b border-slate-800 pb-10 text-left">
-                    <div className="text-left">
-                      <h3 className="text-4xl font-black text-white tracking-tighter leading-none mb-3">{selectedOrder.id}</h3>
-                      <p className="text-slate-500 text-[10px] uppercase font-black mt-1">Status: <span className="text-blue-500">{selectedOrder.status}</span></p>
-                    </div>
-                    <div className="bg-slate-800 p-5 rounded-3xl text-center border border-slate-700 min-w-[120px] shadow-inner">
-                      <p className="text-[9px] text-slate-500 font-black mb-1 uppercase tracking-widest leading-none">Costo</p>
-                      <p className="text-2xl font-black text-white leading-none">${(selectedOrder.cost || 0).toLocaleString()}</p>
-                    </div>
-                  </header>
-
-                  {/* Acciones de Flujo (Asignación) */}
-                  {selectedOrder.status === 'Abierta' && (
-                    <div className={`pt-10 border-t border-slate-800 space-y-6 ${!canAssignOrder ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-                      <label className="text-[10px] font-black text-orange-400 uppercase tracking-[0.3em] flex items-center leading-none"><UserPlus size={16} className="mr-2" /> Asignación de Técnico</label>
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const formData = new FormData(e.currentTarget);
-                        updateOrderStep(selectedOrder.id, { assignedTech: formData.get('tech'), status: 'Asignada' }, 'Asignación de técnico responsable');
-                      }} className="flex gap-4">
-                        <input name="tech" required placeholder="Nombre del Técnico Ejecutor..." className="flex-1 bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-orange-500 shadow-inner" />
-                        <button type="submit" className="bg-orange-600 hover:bg-orange-500 px-8 rounded-2xl font-black text-[10px] tracking-widest uppercase text-white shadow-xl transition-all">Asignar</button>
-                      </form>
-                    </div>
-                  )}
-
-                  {/* Acciones de Flujo (Ejecución) */}
-                  {selectedOrder.status === 'Asignada' && (
-                    <div className={`pt-10 border-t border-slate-800 space-y-8 ${!canExecuteOrder ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-                      <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] flex items-center leading-none"><Wrench size={16} className="mr-2" /> Análisis Técnico y Ejecución</label>
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const formData = new FormData(e.currentTarget);
-                        const cost = parseFloat(formData.get('cost')) || 0;
-                        const workDetail = formData.get('workDetail');
-                        
-                        if (cost > APPROVAL_THRESHOLD && !selectedOrder.isAuthorized) {
-                          updateOrderStep(selectedOrder.id, { workDetail, cost, status: 'Pendiente Autorización' }, 'Solicitud de autorización por costo excedente enviada');
-                        } else {
-                          updateOrderStep(selectedOrder.id, { workDetail, cost, status: 'Cerrada' }, 'Cierre de trabajo finalizado y auditado');
-                        }
-                      }} className="space-y-6">
-                        <textarea required name="workDetail" rows="4" className="w-full bg-slate-800 border border-slate-700 rounded-[2rem] p-8 text-sm outline-none leading-relaxed text-white focus:ring-2 focus:ring-blue-500 shadow-inner" placeholder="Descripción Trabajos Ejecutados..."></textarea>
-                        <div className="grid grid-cols-2 gap-6 text-left">
-                          <div className="space-y-2 text-left">
-                            <label className="text-[9px] font-black text-slate-500 uppercase ml-2 tracking-widest leading-none">Costo Incurrido ($)</label>
-                            <input required name="cost" type="number" className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-sm font-black text-white shadow-inner outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
-                          </div>
-                          <button type="submit" className="bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] text-white shadow-2xl transition-all self-end h-[52px]">
-                            Procesar Cierre
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  )}
-
-                  {/* Solicitud de Autorización */}
-                  {selectedOrder.status === 'Pendiente Autorización' && (
-                    <div className="pt-10 border-t border-slate-800 space-y-6 text-center">
-                      <div className="bg-purple-600/10 border border-purple-500/30 p-10 rounded-[3rem] text-center shadow-inner">
-                        <AlertTriangle size={48} className="text-purple-400 mx-auto mb-6 animate-pulse" />
-                        <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-purple-400 mb-3 leading-none">Aprobación Pendiente</h4>
-                        <p className="text-xs text-slate-400 mb-10 italic leading-relaxed px-10">La intervención de <strong>${(selectedOrder.cost || 0).toLocaleString()}</strong> supera el límite técnico permitido para cierre inmediato.</p>
-                        {canAuthorize ? (
-                          <button onClick={() => handleAuthorize(selectedOrder.id)} className="w-full bg-purple-600 hover:bg-purple-500 py-6 rounded-[2rem] font-black text-xs uppercase tracking-widest text-white flex items-center justify-center transition-all shadow-xl shadow-purple-900/20">
-                            <ThumbsUp size={20} className="mr-3" /> Autorizar Gasto
-                          </button>
-                        ) : (
-                          <div className="py-6 border-2 border-dashed border-slate-800 rounded-3xl">
-                             <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Esperando validación de nivel Autorizador</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Log de Auditoría */}
-                  <div className="pt-12 border-t border-slate-800/50 text-left">
-                    <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-12 flex items-center leading-none italic"><History size={16} className="mr-3" /> historial de trazabilidad</h4>
-                    <div className="space-y-10 relative text-left">
-                      {(selectedOrder.logs || []).map((log, idx) => (
-                        <div key={idx} className="flex gap-8 relative text-left">
-                          <div className={`w-4 h-4 rounded-full mt-1.5 shrink-0 z-10 border-[4px] border-slate-950 shadow-2xl transition-all ${idx === selectedOrder.logs.length - 1 ? 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-125' : 'bg-slate-700 opacity-50'}`}></div>
-                          <div className="flex-1 text-left">
-                            <p className="text-xs font-black text-slate-200 uppercase tracking-widest leading-none mb-2">{log.action}</p>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic opacity-80 leading-none">Auditado: {log.user} — {log.date}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-10 py-48">
-                  <Activity size={150} className="mb-12 text-slate-700" />
-                  <p className="font-black text-3xl uppercase tracking-[0.5em]">DEEPFIX OS</p>
-                  <p className="text-sm mt-6 font-bold tracking-[0.3em] uppercase opacity-60 leading-none">Seleccione una intervención para auditar</p>
-                </div>
-              )}
-            </div>
+             </div>
           </div>
         )}
       </main>
 
-      {/* Modales */}
-      {isNewVehicleModalOpen && (
+      {/* Modal Traspaso */}
+      {isTransferModalOpen && (
         <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[4rem] p-16 animate-in zoom-in-95 duration-500 shadow-2xl">
-            <h3 className="text-3xl font-black mb-12 text-white uppercase tracking-tighter text-center leading-none">Registrar Activo</h3>
-            <form onSubmit={handleAddVehicle} className="space-y-8 text-left">
-              <div className="space-y-2 text-left">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2 leading-none">Tipo de Vehículo</label>
-                <select name="type" className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-inner">
-                  <option value="Bicicleta Eléctrica">Bicicleta Eléctrica</option>
-                  <option value="Tricicleta Eléctrica">Tricicleta Eléctrica</option>
-                </select>
+           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[4rem] p-16 animate-in zoom-in-95 duration-500 shadow-2xl text-center leading-none">
+              <h3 className="text-3xl font-black mb-8 text-white uppercase tracking-tighter italic text-center leading-none">Traspaso de Activo</h3>
+              <div className="space-y-4 mb-10 text-left leading-none">
+                 {customers.map(c => (
+                   <button key={c.id} onClick={() => {
+                     setVehicles(prev => prev.map(v => v.id === isTransferModalOpen ? { ...v, customerId: c.id } : v));
+                     setIsTransferModalOpen(null);
+                   }} className="w-full p-6 bg-slate-950 border border-slate-800 rounded-[2rem] text-left hover:border-blue-500 transition-all group flex items-center justify-between leading-none">
+                      <div className="leading-none text-left">
+                         <p className="text-sm font-black text-white uppercase leading-none">{c.name}</p>
+                         <p className="text-[9px] text-slate-500 mt-2 font-bold uppercase leading-none">ID: {c.id}</p>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-700 group-hover:text-blue-500 transition-colors" />
+                   </button>
+                 ))}
               </div>
-              <div className="space-y-2 text-left">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2 leading-none">Modelo / Marca</label>
-                <input name="model" required className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner" placeholder="Ej: EcoXT 500w" />
-              </div>
-              <div className="space-y-2 text-left">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2 leading-none">Patente / Identificador</label>
-                <input name="plate" required className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-mono font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 uppercase shadow-inner" placeholder="XXX-000" />
-              </div>
-              <div className="flex gap-4 pt-8 text-center">
-                <button type="button" onClick={() => setIsNewVehicleModalOpen(false)} className="flex-1 py-6 rounded-[2rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400 hover:text-white transition-all tracking-widest leading-none">Cancelar</button>
-                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-6 rounded-[2rem] font-black text-[11px] uppercase text-white shadow-2xl tracking-widest leading-none">Registrar</button>
-              </div>
-            </form>
-          </div>
+              <button onClick={() => setIsTransferModalOpen(null)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors leading-none">Cancelar Operación</button>
+           </div>
         </div>
       )}
 
-      {isNewOrderModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[200] flex items-center justify-center p-8 text-left">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[4.5rem] p-20 animate-in zoom-in-95 duration-500 shadow-2xl text-left">
-            <h3 className="text-4xl font-black mb-10 text-white uppercase tracking-tighter leading-none text-left">Apertura OT</h3>
-            <form onSubmit={handleCreateOrder} className="space-y-8 text-left">
-              <div className="grid grid-cols-2 gap-6 text-left">
-                 <div className="space-y-2 text-left">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 leading-none">Seleccionar Activo</label>
-                    <select name="vehicleId" className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-inner text-left">
-                      {vehicles.map(v => <option key={v.id} value={v.id}>{v.model} ({v.plate})</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2 text-left">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 leading-none">Categoría</label>
-                    <select name="category" className="w-full bg-slate-950 border border-slate-800 rounded-3xl px-8 py-5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-inner text-left">
-                      <option value="Correctivo">Correctivo</option>
-                      <option value="Preventivo">Preventivo</option>
-                    </select>
-                  </div>
-              </div>
-              <div className="space-y-2 text-left">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 leading-none">Descripción Inicial</label>
-                <textarea name="problemDescription" required rows="4" className="w-full bg-slate-950 border border-slate-800 rounded-[3rem] p-10 text-sm font-medium leading-relaxed text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-left" placeholder="Detalle técnico inicial..."></textarea>
-              </div>
-              <div className="flex gap-4 pt-6 text-center">
-                <button type="button" onClick={() => setIsNewOrderModalOpen(false)} className="flex-1 py-6 rounded-[2.5rem] font-black text-[11px] bg-slate-800 uppercase text-slate-400 tracking-widest transition-all leading-none">Cerrar</button>
-                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-6 rounded-[2.5rem] font-black text-[11px] uppercase text-white shadow-2xl tracking-widest transition-all leading-none">Iniciar OT</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Estilos */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .printable-area, .printable-area * { visibility: visible; }
+          .printable-area { position: absolute; left: 0; top: 0; width: 100%; height: auto; padding: 0; background: white !important; }
+          .no-print { display: none !important; }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+      `}</style>
     </div>
   );
-};
-
-export default App;
+}
